@@ -1,0 +1,6 @@
+/build*/
+/out/
+/.venv*/
+__pycache__/
+*.pyc
+/compile_commands.json

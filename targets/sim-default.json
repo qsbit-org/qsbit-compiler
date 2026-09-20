@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "name": "qsbit-sim-static-v1",
+  "qubits": 2,
+  "ports": 8,
+  "start_ns": 10000,
+  "mappings": [
+    {
+      "operation": "x",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "x",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "cx",
+      "qubits": [
+        0,
+        1
+      ],
+      "port": 0,
+      "codeword": 6,
+      "duration_ns": 20
+    }
+  ]
+}
