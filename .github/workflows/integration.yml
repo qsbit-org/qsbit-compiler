@@ -1,0 +1,64 @@
+name: Cross-project integration
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 30
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git build-essential cmake ninja-build python3 python3-venv \
+            clang clang-21 llvm-21-dev llvm-21-tools lld-21
+      - name: Check out the revision under test
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: qsbit-compiler
+      - name: Check out qsbit-sim main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: qsbit-org/qsbit-sim
+          ref: main
+          path: qsbit-sim
+      - name: Record tested revisions
+        run: |
+          git -C qsbit-compiler rev-parse HEAD
+          git -C qsbit-sim rev-parse HEAD
+      - name: Install locked simulator dependencies
+        working-directory: qsbit-sim
+        run: |
+          python3 -m venv /tmp/qsbit-ci-tools
+          /tmp/qsbit-ci-tools/bin/pip install uv==0.12.7
+          /tmp/qsbit-ci-tools/bin/uv sync --frozen --python 3.12 --group build --extra aer
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
+      - name: Build simulator with Aer support
+        working-directory: qsbit-sim
+        run: |
+          conan config install conan/config
+          conan install . -pr:a=conan/profiles/clang --build=missing -c tools.build:jobs=2
+          cmake --preset clang-ninja -DBUILD_TESTING=OFF -DQSBIT_BUILD_EXAMPLES=OFF \
+            -DQSBIT_PYTHON_BACKENDS=ON -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
+          cmake --build --preset clang-ninja --parallel 2
+      - name: Build compiler and register integration tests
+        working-directory: qsbit-compiler
+        run: |
+          cmake --preset clang-ninja -DBUILD_TESTING=ON -DQSBIT_TEST_AER=ON \
+            -DQSBIT_SIM_EXECUTABLE="$GITHUB_WORKSPACE/qsbit-sim/build-clang/qsbit-sim"
+          cmake --build --preset clang-ninja --parallel 2
+      - name: Test preset measurement results and numerical Bell behavior
+        working-directory: qsbit-compiler
+        run: ctest --preset clang-ninja --no-tests=error -R '^integration\.(scripted|aer)$'
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cross-project-test-logs
+          path: qsbit-compiler/build-clang/Testing/
