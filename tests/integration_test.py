@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix="qsbit-integration-") as temporary:
         config_path.write_text(json.dumps(config))
         observed, _ = runner.run(elf, simulator, backend, 1, directory / "ordered")
         check(observed["counts"] == {"01": 1}, "result order changed")
-    if backend == "scripted":
+    if backend == "mock":
         source = (root / "examples/bell.ll").read_text()
         lines = source.splitlines()
         positions = [i for i, line in enumerate(lines) if line.strip().startswith("call") and "result_record_output" in line]

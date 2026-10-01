@@ -58,7 +58,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
     parser.add_argument("--sim", required=True, type=Path)
-    parser.add_argument("--backend", choices=("aer", "scripted"), default="aer")
+    parser.add_argument("--backend", choices=("aer", "mock"), default="aer")
     parser.add_argument("--shots", type=int, default=16)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out-dir", type=Path, default=Path("out/runs"))

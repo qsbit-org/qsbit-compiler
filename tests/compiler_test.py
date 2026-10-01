@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix="qsbit-contracts-") as tmp:
         return elf
 
     elf = compile_case()
+    run_config = json.loads(elf.with_suffix(".run.json").read_text())
+    check(run_config["backend"] == "mock", "default measurement backend")
     data = elf.read_bytes()
     check(data[:7] == b"\x7fELF\x01\x01\x01", "ELF encoding")
     check(struct.unpack_from("<HH", data, 16) == (2, 243), "ELF executable machine")

@@ -55,7 +55,7 @@ jobs:
           cmake --build --preset clang-ninja --parallel 2
       - name: Test preset measurement results and numerical Bell behavior
         working-directory: qsbit-compiler
-        run: ctest --preset clang-ninja --no-tests=error -R '^integration\.(scripted|aer)$'
+        run: ctest --preset clang-ninja --no-tests=error -R '^integration\.(mock|aer)$'
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

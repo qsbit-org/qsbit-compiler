@@ -46,7 +46,7 @@ Each shot starts a fresh simulator process. Results are saved to
 `out/runs/results.json`; each shot also has a run configuration, execution trace,
 and summary. Bit strings follow QIR output-record order. For Bell, ideal
 measurement results are `00` and `11`; a finite sample need not split equally.
-The `scripted` backend exercises controller behavior with predetermined results;
+The `mock` backend exercises controller behavior with predetermined results;
 use `aer` to simulate the quantum state.
 
 The compiler also writes `bell.lowered.ll`, `bell.schedule.json`,

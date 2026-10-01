@@ -283,7 +283,7 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
            llvm::json::Object{{"schema", 1},
                               {"program", absolute.filename().string()},
                               {"profile", llvm::json::Object(target.profile)},
-                              {"backend", "scripted"},
+                              {"backend", "mock"},
                               {"inspect", std::move(inspect)},
                               {"summary", absolute.stem().string() + ".summary.json"},
                               {"trace", absolute.stem().string() + ".trace.jsonl"}});

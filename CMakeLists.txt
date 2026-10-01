@@ -36,10 +36,10 @@ if(BUILD_TESTING)
   set(QSBIT_SIM_EXECUTABLE "" CACHE FILEPATH "Optional qsbit-sim executable for integration tests")
   option(QSBIT_TEST_AER "Run numerical Bell integration tests (requires simulator Aer backend)" OFF)
   if(QSBIT_SIM_EXECUTABLE)
-    add_test(NAME integration.scripted COMMAND "${Python3_EXECUTABLE}"
+    add_test(NAME integration.mock COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/integration_test.py" "$<TARGET_FILE:qsbitc>"
-      "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}" scripted)
-    set_tests_properties(integration.scripted PROPERTIES TIMEOUT 60)
+      "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}" mock)
+    set_tests_properties(integration.mock PROPERTIES TIMEOUT 60)
     if(QSBIT_TEST_AER)
       add_test(NAME integration.aer COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/integration_test.py" "$<TARGET_FILE:qsbitc>"

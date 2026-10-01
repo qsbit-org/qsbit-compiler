@@ -38,7 +38,7 @@ The updated simulator passed all 38 configured tests. Its source worktree was
 unchanged after the update and validation.
 
 Both compiler presets built successfully and passed the compiler contract
-tests. The Clang build additionally passed the scripted integration test and
+tests. The Clang build additionally passed the mock integration test and
 the Aer integration test. Aer verified the four Bell amplitudes before
 measurement against `[1/sqrt(2), 0, 0, 1/sqrt(2)]` with tolerance `1e-10`, then
 verified that 16 shots with seeds 1 through 16 produced only `00` and `11`,
