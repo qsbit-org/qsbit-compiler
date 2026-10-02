@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
         return 0;
       }
       if (argument == "--version") {
-        std::cout << "qsbitc 0.1.0 (LLVM 21, qsbit-static-v1)\n";
+        std::cout << "qsbitc 0.1.0 (LLVM 21, qsbit-static-v2)\n";
         return 0;
       }
       if (argument == "--target" || argument == "-o") {

@@ -45,7 +45,7 @@ Target readTarget(const std::filesystem::path &path) {
   integer(*object, "schema", 1, 1);
   Target target;
   target.name = string(*object, "name");
-  target.qubits = integer(*object, "qubits", 1, 64);
+  target.qubits = integer(*object, "qubits", 1, 32);
   const auto ports = integer(*object, "ports", 1, 64);
   target.start = integer(*object, "start_ns", 10000, 100000);
   if (target.start % target.tcuPeriod != 0)
@@ -113,8 +113,7 @@ Target readTarget(const std::filesystem::path &path) {
                                       {"timing_capacity", target.timingCapacity},
                                       {"event_capacity", target.eventCapacity},
                                       {"staging_capacity", 16},
-                                      {"result_slots", target.resultSlots},
-                                      {"history_depth", 8},
+                                      {"result_capacity", target.resultCapacity},
                                       {"ports", ports},
                                       {"qubits", target.qubits},
                                       {"firing_width", 1},

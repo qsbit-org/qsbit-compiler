@@ -31,7 +31,11 @@ with tempfile.TemporaryDirectory(prefix="qsbit-integration-") as temporary:
     check([(e["operation"], e["tick"]) for e in starts] ==
           [(e["operation"], e["tick_ns"]) for e in plan], "physical action times differ from the compiled schedule")
     reads = [e for e in events if e["kind"] == "InstructionRetired" and e["word"] & 0x707F == 0x300B]
-    check(len(reads) == 2, "each measurement handle must be consumed exactly once")
+    check(len(reads) == 2, "expected one FMR per measured qubit")
+    check([(e["word"] >> 15) & 31 for e in reads] == [0, 1], "FMR must address qubit registers")
+    codewords = [e for e in events if e["kind"] == "InstructionRetired" and e["word"] & 0x707F == 0x000B]
+    check(len(codewords) == len(plan) and all((e["word"] >> 7) & 31 == 0 for e in codewords),
+          "cw must not write a GPR")
     if backend == "aer":
         check(set(result["counts"]) == {"00", "11"}, f"Bell correlation failed: {result}")
         # Verify the coherent state before measurement; correlation alone also holds for |00>.
@@ -60,7 +64,7 @@ with tempfile.TemporaryDirectory(prefix="qsbit-integration-") as temporary:
         lines = source.splitlines()
         positions = [i for i, line in enumerate(lines) if line.strip().startswith("call") and "result_record_output" in line]
         first, second = positions
-        # Reverse records and repeat one result: QREAD must still consume only two handles.
+        # Reverse records and repeat one output.
         lines[first], lines[second] = lines[second], lines[first]
         lines.insert(second + 1, lines[second])
         modified = "\n".join(lines).replace("array_record_output(i64 2", "array_record_output(i64 3")
@@ -76,7 +80,36 @@ with tempfile.TemporaryDirectory(prefix="qsbit-integration-") as temporary:
         check(observed["counts"] == {"100": 1}, "reordered or duplicated results changed")
         events = [json.loads(line) for line in (directory / "reordered/shot-0000.trace.jsonl").read_text().splitlines()]
         reads = [e for e in events if e["kind"] == "InstructionRetired" and e["word"] & 0x707F == 0x300B]
-        check(len(reads) == 2, "duplicate output consumed a measurement handle twice")
+        check(len(reads) == 2, "duplicate output emitted an extra FMR")
+        swapped = source.replace('mz__body(ptr null, ptr null)',
+                                 'mz__body(ptr null, ptr inttoptr (i64 1 to ptr))')
+        swapped = swapped.replace('mz__body(ptr inttoptr (i64 1 to ptr), ptr inttoptr (i64 1 to ptr))',
+                                  'mz__body(ptr inttoptr (i64 1 to ptr), ptr null)')
+        swapped_qir = directory / "swapped.ll"
+        swapped_qir.write_text(swapped)
+        target = json.loads((root / "targets/sim-default.json").read_text())
+        for mapping in target["mappings"]:
+            mapping["port"] += 3
+        target_path = directory / "remapped.json"
+        target_path.write_text(json.dumps(target))
+        swapped_elf = directory / "swapped.elf"
+        subprocess.run([compiler, swapped_qir, "--target", target_path, "-o", swapped_elf], check=True)
+        config_path = swapped_elf.with_suffix(".run.json")
+        config = json.loads(config_path.read_text())
+        config["outcomes"] = [False, True]
+        config_path.write_text(json.dumps(config))
+        observed, _ = runner.run(swapped_elf, simulator, backend, 1, directory / "swapped")
+        check(observed["counts"] == {"10": 1}, "FMR used a port or result ID as its qubit index")
+        manifest_path = swapped_elf.with_suffix(".manifest.json")
+        manifest = json.loads(manifest_path.read_text())
+        manifest["abi"] = "unsupported"
+        manifest_path.write_text(json.dumps(manifest))
+        try:
+            runner.run(swapped_elf, Path("/nonexistent-simulator"), backend, 1, directory / "bad-abi")
+        except ValueError as error:
+            check("ABI" in str(error), str(error))
+        else:
+            raise AssertionError("unsupported ABI accepted")
     # Compatibility checks must fail before launching any simulator process.
     config_path = elf.with_suffix(".run.json")
     config = json.loads(config_path.read_text())

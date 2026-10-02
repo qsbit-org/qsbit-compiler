@@ -35,7 +35,7 @@ struct Target {
   std::string name;
   std::uint32_t qubits = 0;
   std::uint32_t start = 10000, tcuPeriod = 20;
-  std::uint32_t timingCapacity = 32, eventCapacity = 32, resultSlots = 8;
+  std::uint32_t timingCapacity = 32, eventCapacity = 32, resultCapacity = 8;
   std::vector<Mapping> mappings;
   llvm::json::Object profile;
 };

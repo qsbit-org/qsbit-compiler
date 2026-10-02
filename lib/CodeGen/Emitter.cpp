@@ -66,8 +66,7 @@ void validateELF(const std::filesystem::path &path, const Target &target) {
       throw std::runtime_error(llvm::toString(content.takeError()));
     if (content->size() % 4 != 0 || content->size() >= OutputAddress)
       throw std::runtime_error("text must contain aligned RV32 instructions below output RAM");
-    // All accepted programs are straight-line after the startup jump. Count the
-    // preload prefix, including spills, through QFLUSH and before the first QREAD.
+    // Count preload instructions before the first FMR or exit call.
     std::uint32_t preload = 0;
     bool reading = false;
     for (std::size_t offset = 0; offset < content->size(); offset += 4) {
@@ -92,9 +91,16 @@ void validateELF(const std::filesystem::path &path, const Target &target) {
           throw std::runtime_error("non-RV32I arithmetic in ELF");
         break;
       case 0x0b:
-        if ((instruction >> 25) != 0 || funct3 > 4)
+        if ((instruction >> 25) != 0 || (funct3 != 0 && funct3 != 1 && funct3 != 3) ||
+            (funct3 != 3 && ((instruction >> 7) & 31) != 0) ||
+            (funct3 != 0 && ((instruction >> 20) & 31) != 0))
           throw std::runtime_error("unsupported quantum instruction in ELF");
-        reading |= funct3 == 3 || funct3 == 4;
+        reading |= funct3 == 3;
+        break;
+      case 0x73:
+        if (instruction != 0x73)
+          throw std::runtime_error("unsupported system instruction in ELF");
+        reading = true;
         break;
       default:
         throw std::runtime_error("unexpected instruction in ELF: " + std::to_string(instruction));
@@ -159,26 +165,21 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
     return builder.CreateCall(llvm::InlineAsm::get(type, assembly, constraints, true), values);
   };
   auto constant = [&](std::uint32_t value) { return builder.getInt32(value); };
-  std::map<std::uint32_t, llvm::Value *> handles, bits;
+  std::map<std::uint32_t, std::uint32_t> measurementTargets;
+  std::map<std::uint32_t, llvm::Value *> bits;
   std::uint32_t cursor = 0;
   for (const auto &item : plan.operations) {
     emit(".insn r 0x0b, 1, 0, x0, $0, x0", "r,~{memory}", voidType,
          {constant(item.cycle - cursor)});
     cursor = item.cycle;
-    if (item.operation.result) {
-      handles[*item.operation.result] =
-          emit(".insn r 0x0b, 0, 0, $0, $1, $2", "=r,r,r,~{memory}", i32,
-               {constant(item.mapping.port), constant(item.mapping.codeword)});
-    } else {
-      emit(".insn r 0x0b, 0, 0, x0, $0, $1", "r,r,~{memory}", voidType,
-           {constant(item.mapping.port), constant(item.mapping.codeword)});
-    }
+    emit(".insn r 0x0b, 0, 0, x0, $0, $1", "r,r,~{memory}", voidType,
+         {constant(item.mapping.port), constant(item.mapping.codeword)});
+    if (item.operation.result)
+      measurementTargets[*item.operation.result] = item.operation.qubits.front();
   }
-  if (!plan.operations.empty())
-    emit(".insn r 0x0b, 2, 0, x0, x0, x0", "~{memory}", voidType, {});
-  // Consume each hardware handle once, even if a result has multiple output records.
-  for (const auto &[id, handle] : handles)
-    bits[id] = emit(".insn r 0x0b, 3, 0, $0, $1, x0", "=r,r,~{memory}", i32, {handle});
+  for (const auto &[id, targetQubit] : measurementTargets)
+    bits[id] = emit(".insn r 0x0b, 3, 0, $0, x" + std::to_string(targetQubit) + ", x0",
+                    "=r,~{memory}", i32, {});
   std::uint32_t index = 0;
   llvm::json::Array outputs;
   for (const auto &record : program.outputs) {
@@ -198,8 +199,8 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
     }
     outputs.push_back(std::move(json));
   }
-  emit(".insn r 0x0b, 4, 0, x0, x0, x0", "~{memory}", voidType, {});
-  builder.CreateRetVoid();
+  emit("li a0, 0\nli a7, 93\necall", "~{a0},~{a7},~{memory}", voidType, {});
+  builder.CreateUnreachable();
   if (llvm::verifyModule(module, &llvm::errs()))
     throw std::runtime_error("invalid lowered LLVM IR");
 
@@ -265,8 +266,8 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
   jsonFile(artifact(".manifest.json"),
            llvm::json::Object{{"schema", 1},
                               {"compiler_version", "0.1.0"},
-                              {"isa", "rv32i-qsbit-v1"},
-                              {"abi", "qsbit-static-v1"},
+                              {"isa", "rv32i-qsbit-v2"},
+                              {"abi", "qsbit-static-v2"},
                               {"qir_dialect", program.dialect},
                               {"entry", program.entry},
                               {"entry_attributes", llvm::json::Object(program.attributes)},

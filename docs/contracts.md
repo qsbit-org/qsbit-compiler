@@ -71,17 +71,15 @@ A CX mapping specifies both participating qubits even though one port receives
 one codeword. There is no implicit connectivity or routing. Both the operation
 with its ordered qubits and the port with its codeword must be unique.
 
-Target limits are 1–64 qubits, 1–64 ports, codewords 0–65535, and operation
+Target limits are 1–32 qubits, 1–64 ports, codewords 0–65535, and operation
 durations 1–10000 ns. `start_ns` is between 10000 and 100000 ns and must align
 to 20 ns. Each mapping expands to one simulator action with no action delay,
 exclusive resources for its qubits, and a 20 ns discriminator delay.
 
 This target format fixes the CPU clock at 5 ns and the timing control unit
 (TCU) clock at 20 ns. The profile uses 32 timing entries, 32 event entries,
-16 staging entries, eight result slots, and firing width one. The generated
-manifest contains every profile field, including transport latencies. Changing
-these fixed parameters requires a corresponding compiler implementation and
-validation change; arbitrary simulator profiles are not accepted as targets.
+16 staging entries, eight outstanding measurements per delivery path, and
+firing width one. The manifest embeds the target profile and transport latencies.
 
 ## Scheduling and controller instructions
 
@@ -91,37 +89,37 @@ is `start_ns + cycle * 20` ns. Independent gates are also serialized.
 
 The CPU preloads the complete schedule before the target start time. The
 16-operation bound fits the fixed timing and event queues. Measurements are
-limited to eight because each holds a result slot until read. The final ELF
-check requires the preload instruction count multiplied by 100 ns to be
-strictly less than `start_ns`. This conservative budget applies to the fixed
-profile and straight-line generated code; it is not a general timing analysis
-for arbitrary hardware or control flow.
+limited to eight outstanding result deliveries. ELF validation requires
+the preload instruction count multiplied by 100 ns to be strictly less
+than `start_ns`.
 
-Quantum instructions use RISC-V custom opcode `0x0b`, function field 7 equal
-to zero, and these function field 3 values:
+The compiler emits control instructions with opcode `0x0b`, funct7 zero
+and these funct3 values:
 
 | Value | Instruction | Use |
 | --- | --- | --- |
-| 0 | QAPPEND | Append a mapped port and codeword; measurement returns a handle |
-| 1 | QADVANCE | Advance the timing cursor and commit the previous group |
-| 2 | QFLUSH | Commit the last group before waiting for results |
-| 3 | QREAD | Wait for and consume one measurement handle |
-| 4 | QEND | End execution after pending work completes |
+| 0 | `cw.r.r` | Prepare events using port and codeword GPRs; rd is zero. |
+| 1 | `wait.r` | Advance the time point by the interval in rs1; rd and rs2 are zero. |
+| 3 | `FMR` | Copy a measurement register into rd; rs1 holds the qubit index and rs2 is zero. |
 
 LLVM emits these instructions through side-effecting inline assembly with
-memory clobbers. Every measurement handle is read exactly once, including
-unreported measurements. Repeated output records reuse the cached bit value.
+memory clobbers. FMR waits for the selected qubit's pending measurements and
+leaves its result register unchanged. The compiler emits one FMR per measured
+qubit; repeated output records reuse the captured bit.
+
+The program exits with `ECALL`, `a7 = 93` and `a0 = 0`. The simulator enqueues
+pending events and waits for device work and result deliveries to finish.
 
 ## Executable and artifacts
 
-The ABI is `qsbit-static-v1`: little-endian ELF32, RISC-V machine type, entry
+The ABI is `qsbit-static-v2`: little-endian ELF32, RISC-V machine type, entry
 address zero, no compressed instructions, and ELF flags zero. The startup
 sets the stack pointer to `0xfff0`. Executable text must fit below `0x1000`.
 Output bits occupy consecutive 32-bit words beginning at `0x1000`. The target
 requires at least 64 KiB of simulator RAM. No hosted C library is linked.
 
-The compiler emits a new RISC-V LLVM module rather than reusing an input
-module's host data layout. LLD links the object with an internal linker script.
+The compiler emits a RISC-V LLVM module. LLD links the object with an internal
+linker script.
 Compilation and validation take place in a temporary directory under the output
 directory. Files are published only after validation; publication of the whole
 bundle is not an atomic filesystem transaction. The runner's digest and profile

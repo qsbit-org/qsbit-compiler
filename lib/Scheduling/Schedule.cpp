@@ -12,8 +12,8 @@ Schedule schedule(const Program &program, const Target &target) {
     throw std::runtime_error("schedule: program exceeds preload queue capacity");
   const auto measurements = std::count_if(program.operations.begin(), program.operations.end(),
                                           [](const auto &op) { return op.result.has_value(); });
-  if (measurements > target.resultSlots)
-    throw std::runtime_error("schedule: terminal measurements exceed result slots");
+  if (measurements > target.resultCapacity)
+    throw std::runtime_error("schedule: terminal measurements exceed delivery capacity");
   Schedule result;
   std::uint32_t cycle = 1;
   for (const auto &op : program.operations) {

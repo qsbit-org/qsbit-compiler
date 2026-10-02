@@ -13,7 +13,7 @@ def run(elf, simulator, backend, shots, output, seed=1):
     output = Path(output).resolve()
     manifest = json.loads(elf.with_suffix(".manifest.json").read_text())
     config = json.loads(elf.with_suffix(".run.json").read_text())
-    if manifest.get("abi") != "qsbit-static-v1":
+    if manifest.get("abi") != "qsbit-static-v2":
         raise ValueError("unsupported executable ABI")
     if hashlib.sha256(elf.read_bytes()).hexdigest() != manifest["elf_sha256"]:
         raise ValueError("ELF does not match its manifest")
@@ -41,8 +41,8 @@ def run(elf, simulator, backend, shots, output, seed=1):
         run_path.write_text(json.dumps(current, indent=2) + "\n")
         subprocess.run([str(simulator), "--config", str(run_path)], check=True, capture_output=True)
         summary = json.loads(summary_path.read_text())
-        if not summary["success"] or summary["result_slots"]:
-            raise ValueError(f"shot {shot} did not complete and release all result handles")
+        if not summary["success"] or any(reg["pending"] for reg in summary["measurement_registers"]):
+            raise ValueError(f"shot {shot} has unfinished measurements")
         values = [summary["memory"][str(address)] for address in addresses]
         if any(value not in (0, 1) for value in values):
             raise ValueError(f"shot {shot} produced a non-bit output")
