@@ -119,6 +119,7 @@ Target readTarget(const std::filesystem::path &path) {
                                       {"firing_width", 1},
                                       {"seed", 1},
                                       {"fast_feedback", false},
+                                      {"two_qubit_gates", llvm::json::Array{}},
                                       {"mappings", std::move(profileMappings)}};
   return target;
 }
