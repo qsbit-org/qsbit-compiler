@@ -92,8 +92,9 @@ Target readTarget(const std::filesystem::path &path) {
                               {"targets", std::move(targets)},
                               {"resources", std::move(resources)},
                               {"delay", 0},
-                              {"duration", mapping.duration},
-                              {"discriminator_delay", 20}};
+                              {"duration", mapping.duration}};
+    if (mapping.operation == "measure")
+      action["discriminator_delay"] = 20;
     llvm::json::Array actions;
     actions.push_back(std::move(action));
     profileMappings.push_back(llvm::json::Object{
