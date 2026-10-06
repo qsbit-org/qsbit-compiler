@@ -89,11 +89,14 @@ Program readQIR(const std::filesystem::path &path) {
         fail("multiple entry points are unsupported");
       entry = &function;
     }
-    if (!function.isDeclaration() && !function.hasFnAttribute("entry_point"))
-      fail("helper function definitions are unsupported");
   }
   if (!entry || entry->isDeclaration())
     fail("expected one defined entry_point");
+  if (entry->getFnAttribute("qir_profiles").getValueAsString() == "adaptive_profile")
+    return readAdaptive(*module);
+  for (auto &function : *module)
+    if (!function.isDeclaration() && &function != entry)
+      fail("helper function definitions are unsupported");
   if (!entry->arg_empty() || !entry->getReturnType()->isVoidTy() || entry->isVarArg() ||
       entry->size() != 1)
     fail("entry point must be a void, argument-free, single-block function");

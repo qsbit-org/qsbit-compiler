@@ -9,12 +9,12 @@ int main(int argc, char **argv) {
       const std::string argument = argv[i];
       if (argument == "--help" || argument == "-h") {
         std::cout << "Usage: qsbitc INPUT.ll --target TARGET.json -o OUTPUT.elf\n"
-                     "Compile the static QIR Base subset; LLVM bitcode input is also accepted.\n"
+                     "Compile supported QIR Base and Adaptive programs; accepts LLVM bitcode.\n"
                      "Emits ELF, lowered LLVM IR, manifest, schedule, and simulator run config.\n";
         return 0;
       }
       if (argument == "--version") {
-        std::cout << "qsbitc 0.1.0 (LLVM 21, qsbit-static-v2)\n";
+        std::cout << "qsbitc 0.1.0 (LLVM 21)\n";
         return 0;
       }
       if (argument == "--target" || argument == "-o") {
@@ -38,8 +38,7 @@ int main(int argc, char **argv) {
     auto device = qsbit::readTarget(target);
     auto plan = qsbit::schedule(program, device);
     qsbit::emitExecutable(program, device, plan, output, QSBIT_LLD);
-    std::cout << "Compiled " << program.operations.size() << " quantum operations to "
-              << output.string() << '\n';
+    std::cout << "Compiled " << program.entry << " to " << output.string() << '\n';
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "qsbitc: " << error.what() << '\n';

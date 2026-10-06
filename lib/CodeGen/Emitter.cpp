@@ -45,7 +45,7 @@ std::uint32_t word(llvm::StringRef bytes, std::size_t offset) {
     value |= std::uint32_t(static_cast<unsigned char>(bytes[offset + i])) << (8 * i);
   return value;
 }
-void validateELF(const std::filesystem::path &path, const Target &target) {
+void validateELF(const std::filesystem::path &path, const Target &target, bool adaptive) {
   auto bytes = llvm::MemoryBuffer::getFile(path.string());
   if (!bytes)
     throw std::runtime_error("cannot read linked ELF");
@@ -64,13 +64,15 @@ void validateELF(const std::filesystem::path &path, const Target &target) {
     auto content = section.getContents();
     if (!content)
       throw std::runtime_error(llvm::toString(content.takeError()));
-    if (content->size() % 4 != 0 || content->size() >= OutputAddress)
+    if (content->size() % 4 != 0 || content->size() >= (adaptive ? 0x10000 : OutputAddress))
       throw std::runtime_error("text must contain aligned RV32 instructions below output RAM");
     // Count preload instructions before the first FMR or exit call.
     std::uint32_t preload = 0;
     bool reading = false;
     for (std::size_t offset = 0; offset < content->size(); offset += 4) {
       const auto instruction = word(*content, offset);
+      if (adaptive && instruction == 0)
+        continue;
       const auto opcode = instruction & 0x7f;
       const auto funct3 = (instruction >> 12) & 7;
       if ((instruction & 3) != 3)
@@ -108,7 +110,7 @@ void validateELF(const std::filesystem::path &path, const Target &target) {
       if (!reading)
         ++preload;
     }
-    if (std::uint64_t(preload) * 100 >= target.start)
+    if (!adaptive && std::uint64_t(preload) * 100 >= target.start)
       throw std::runtime_error("preload deadline budget exceeded; increase target start_ns");
   }
   if (!foundText)
@@ -142,65 +144,71 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
   if (!machine)
     throw std::runtime_error("cannot construct RISC-V target machine");
   llvm::LLVMContext context;
-  llvm::Module module("qsbit-controller", context);
+  const bool adaptive = !program.adaptiveIR.empty();
+  auto moduleOwner = adaptive ? lowerAdaptive(program, target, context)
+                              : std::make_unique<llvm::Module>("qsbit-controller", context);
+  auto &module = *moduleOwner;
   module.setTargetTriple(triple);
   module.setDataLayout(machine->createDataLayout());
   module.setModuleInlineAsm(
-      ".option norvc\n.option norelax\n.section .text.start,\"ax\",@progbits\n"
-      ".globl _start\n.type _start,@function\n_start:\n"
-      "lui sp, 16\naddi sp, sp, -16\nj qsbit_entry\n.size _start, .-_start\n");
-  llvm::IRBuilder<> builder(context);
-  auto *voidType = builder.getVoidTy();
-  auto *i32 = builder.getInt32Ty();
-  auto *function =
-      llvm::Function::Create(llvm::FunctionType::get(voidType, false),
-                             llvm::GlobalValue::ExternalLinkage, "qsbit_entry", module);
-  builder.SetInsertPoint(llvm::BasicBlock::Create(context, "entry", function));
-  auto emit = [&](llvm::StringRef assembly, llvm::StringRef constraints, llvm::Type *result,
-                  llvm::ArrayRef<llvm::Value *> values) -> llvm::Value * {
-    std::vector<llvm::Type *> types;
-    for (auto *value : values)
-      types.push_back(value->getType());
-    auto *type = llvm::FunctionType::get(result, types, false);
-    return builder.CreateCall(llvm::InlineAsm::get(type, assembly, constraints, true), values);
-  };
-  auto constant = [&](std::uint32_t value) { return builder.getInt32(value); };
-  std::map<std::uint32_t, std::uint32_t> measurementTargets;
-  std::map<std::uint32_t, llvm::Value *> bits;
-  std::uint32_t cursor = 0;
-  for (const auto &item : plan.operations) {
-    emit(".insn r 0x0b, 1, 0, x0, $0, x0", "r,~{memory}", voidType,
-         {constant(item.cycle - cursor)});
-    cursor = item.cycle;
-    emit(".insn r 0x0b, 0, 0, x0, $0, $1", "r,r,~{memory}", voidType,
-         {constant(item.mapping.port), constant(item.mapping.codeword)});
-    if (item.operation.result)
-      measurementTargets[*item.operation.result] = item.operation.qubits.front();
-  }
-  for (const auto &[id, targetQubit] : measurementTargets)
-    bits[id] = emit(".insn r 0x0b, 3, 0, $0, x" + std::to_string(targetQubit) + ", x0",
-                    "=r,~{memory}", i32, {});
-  std::uint32_t index = 0;
+      std::string(".option norvc\n.option norelax\n.section .text.start,\"ax\",@progbits\n"
+                  ".globl _start\n.type _start,@function\n_start:\n") +
+      (adaptive ? "lui sp, 256\n" : "lui sp, 16\n") +
+      "addi sp, sp, -16\nj qsbit_entry\n.size _start, .-_start\n");
   llvm::json::Array outputs;
-  for (const auto &record : program.outputs) {
-    llvm::json::Object json{{"kind", record.kind}};
-    if (record.label)
-      json["label"] = *record.label;
-    else
-      json["label"] = nullptr;
-    if (record.kind == "result") {
-      const auto address = OutputAddress + 4 * index++;
-      auto *pointer = builder.CreateIntToPtr(constant(address), builder.getPtrTy());
-      builder.CreateStore(bits.at(record.value), pointer, true);
-      json["result_id"] = record.value;
-      json["address"] = address;
-    } else {
-      json["length"] = record.value;
+  std::uint32_t index = 0;
+  if (!adaptive) {
+    llvm::IRBuilder<> builder(context);
+    auto *voidType = builder.getVoidTy();
+    auto *i32 = builder.getInt32Ty();
+    auto *function =
+        llvm::Function::Create(llvm::FunctionType::get(voidType, false),
+                               llvm::GlobalValue::ExternalLinkage, "qsbit_entry", module);
+    builder.SetInsertPoint(llvm::BasicBlock::Create(context, "entry", function));
+    auto emit = [&](llvm::StringRef assembly, llvm::StringRef constraints, llvm::Type *result,
+                    llvm::ArrayRef<llvm::Value *> values) -> llvm::Value * {
+      std::vector<llvm::Type *> types;
+      for (auto *value : values)
+        types.push_back(value->getType());
+      auto *type = llvm::FunctionType::get(result, types, false);
+      return builder.CreateCall(llvm::InlineAsm::get(type, assembly, constraints, true), values);
+    };
+    auto constant = [&](std::uint32_t value) { return builder.getInt32(value); };
+    std::map<std::uint32_t, std::uint32_t> measurementTargets;
+    std::map<std::uint32_t, llvm::Value *> bits;
+    std::uint32_t cursor = 0;
+    for (const auto &item : plan.operations) {
+      emit(".insn r 0x0b, 1, 0, x0, $0, x0", "r,~{memory}", voidType,
+           {constant(item.cycle - cursor)});
+      cursor = item.cycle;
+      emit(".insn r 0x0b, 0, 0, x0, $0, $1", "r,r,~{memory}", voidType,
+           {constant(item.mapping.port), constant(item.mapping.codeword)});
+      if (item.operation.result)
+        measurementTargets[*item.operation.result] = item.operation.qubits.front();
     }
-    outputs.push_back(std::move(json));
+    for (const auto &[id, targetQubit] : measurementTargets)
+      bits[id] = emit(".insn r 0x0b, 3, 0, $0, x" + std::to_string(targetQubit) + ", x0",
+                      "=r,~{memory}", i32, {});
+    for (const auto &record : program.outputs) {
+      llvm::json::Object json{{"kind", record.kind}};
+      if (record.label)
+        json["label"] = *record.label;
+      else
+        json["label"] = nullptr;
+      if (record.kind == "result") {
+        const auto address = OutputAddress + 4 * index++;
+        auto *pointer = builder.CreateIntToPtr(constant(address), builder.getPtrTy());
+        builder.CreateStore(bits.at(record.value), pointer, true);
+        json["result_id"] = record.value;
+        json["address"] = address;
+      } else {
+        json["length"] = record.value;
+      }
+      outputs.push_back(std::move(json));
+    }
+    emit("li a0, 0\nli a7, 93\necall", "~{a0},~{a7},~{memory}", voidType, {});
+    builder.CreateUnreachable();
   }
-  emit("li a0, 0\nli a7, 93\necall", "~{a0},~{a7},~{memory}", voidType, {});
-  builder.CreateUnreachable();
   if (llvm::verifyModule(module, &llvm::errs()))
     throw std::runtime_error("invalid lowered LLVM IR");
 
@@ -228,9 +236,17 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
     throw std::runtime_error("RISC-V object emission is unavailable");
   passes.run(module);
   object.close();
-  textFile(artifact(".ld"), "OUTPUT_ARCH(riscv)\nENTRY(_start)\nPHDRS { text PT_LOAD FLAGS(5); }\n"
-                            "SECTIONS { . = 0; .text : { *(.text.start) *(.text*) } :text\n"
-                            "/DISCARD/ : { *(.eh_frame*) *(.comment) } }\n");
+  textFile(artifact(".ld"),
+           adaptive ? "OUTPUT_ARCH(riscv)\nENTRY(_start)\nPHDRS { text PT_LOAD FLAGS(5); data "
+                      "PT_LOAD FLAGS(6); }\n"
+                      "SECTIONS { . = 0; .text : { *(.text.start) *(.text*) } :text\n"
+                      ". = 0x20000; .data : { *(.data*) *(.sdata*) *(.rodata*) } :data\n"
+                      ".bss : { *(.bss*) *(.sbss*) *(COMMON) } :data\n"
+                      "ASSERT(. < 0xe0000, \"data overlaps stack\")\n"
+                      "/DISCARD/ : { *(.eh_frame*) *(.comment) } }\n"
+                    : "OUTPUT_ARCH(riscv)\nENTRY(_start)\nPHDRS { text PT_LOAD FLAGS(5); }\n"
+                      "SECTIONS { . = 0; .text : { *(.text.start) *(.text*) } :text\n"
+                      "/DISCARD/ : { *(.eh_frame*) *(.comment) } }\n");
   std::vector<std::string> arguments{linker,
                                      "-m",
                                      "elf32lriscv",
@@ -243,7 +259,7 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
   std::vector<llvm::StringRef> refs(arguments.begin(), arguments.end());
   if (llvm::sys::ExecuteAndWait(linker, refs, std::nullopt, {}, 30, 0, &error) != 0)
     throw std::runtime_error("LLD failed: " + error);
-  validateELF(artifact(".elf"), target);
+  validateELF(artifact(".elf"), target, adaptive);
   auto bytes = llvm::MemoryBuffer::getFile(artifact(".elf").string());
   if (!bytes)
     throw std::runtime_error("cannot hash ELF");
@@ -261,33 +277,62 @@ void emitExecutable(const Program &program, const Target &target, const Schedule
                                         {"tick_ns", target.start + item.cycle * target.tcuPeriod},
                                         {"duration_ns", item.mapping.duration}});
   }
-  jsonFile(artifact(".schedule.json"),
-           llvm::json::Object{{"schema", 1}, {"events", std::move(events)}});
-  jsonFile(artifact(".manifest.json"),
-           llvm::json::Object{{"schema", 1},
+  auto profile = llvm::json::Object(target.profile);
+  llvm::json::Object timing{{"schema", 1}};
+  if (adaptive) {
+    profile["firing_width"] = *profile.getInteger("ports");
+    profile["watchdog"] = 100000000;
+    timing["block_cycles"] = target.blockCycles;
+    timing["tcu_period_ns"] = target.tcuPeriod;
+    timing["start_ns"] = target.start;
+    timing["mode"] = "control-flow";
+  } else {
+    timing["mode"] = "static";
+    timing["events"] = std::move(events);
+  }
+  jsonFile(artifact(".schedule.json"), std::move(timing));
+  llvm::json::Object manifest{{"schema", 1},
                               {"compiler_version", "0.1.0"},
                               {"isa", "rv32i-qsbit-v2"},
-                              {"abi", "qsbit-static-v2"},
+                              {"abi", adaptive ? "qsbit-adaptive-v1" : "qsbit-static-v2"},
                               {"qir_dialect", program.dialect},
                               {"entry", program.entry},
                               {"entry_attributes", llvm::json::Object(program.attributes)},
                               {"target", target.name},
-                              {"profile", llvm::json::Object(target.profile)},
+                              {"profile", llvm::json::Object(profile)},
                               {"elf_sha256", llvm::toHex(digest, true)},
                               {"outputs", std::move(outputs)},
                               {"output_word_count", index},
-                              {"stack_pointer", 65520}});
+                              {"stack_pointer", adaptive ? 1048560 : 65520}};
+  if (adaptive) {
+    manifest.erase("output_word_count");
+    manifest["output_buffer"] = llvm::json::Object{{"count_address", 0x10000},
+                                                   {"data_address", 0x10004},
+                                                   {"capacity", 16383},
+                                                   {"word_bytes", 4}};
+  }
+  if (!target.decoding.empty())
+    manifest["decoding"] = llvm::json::Object(target.decoding);
+  jsonFile(artifact(".manifest.json"), std::move(manifest));
   llvm::json::Array inspect;
   for (std::uint32_t i = 0; i < index; ++i)
     inspect.push_back(OutputAddress + 4 * i);
-  jsonFile(artifact(".run.json"),
-           llvm::json::Object{{"schema", 1},
-                              {"program", absolute.filename().string()},
-                              {"profile", llvm::json::Object(target.profile)},
-                              {"backend", "mock"},
-                              {"inspect", std::move(inspect)},
-                              {"summary", absolute.stem().string() + ".summary.json"},
-                              {"trace", absolute.stem().string() + ".trace.jsonl"}});
+  if (adaptive)
+    inspect.push_back(0x10000);
+  llvm::json::Object run{{"schema", 1},
+                         {"program", absolute.filename().string()},
+                         {"profile", std::move(profile)},
+                         {"backend", "mock"},
+                         {"inspect", std::move(inspect)},
+                         {"summary", absolute.stem().string() + ".summary.json"},
+                         {"trace", absolute.stem().string() + ".trace.jsonl"}};
+  if (adaptive) {
+    run["memory_size"] = 1048576;
+    run["memory_dump"] = absolute.stem().string() + ".memory.bin";
+  }
+  if (!target.decoding.empty())
+    run["decoding"] = llvm::json::Object(target.decoding);
+  jsonFile(artifact(".run.json"), std::move(run));
   for (const auto *suffix : {".lowered.ll", ".schedule.json", ".manifest.json", ".run.json"})
     std::filesystem::rename(artifact(suffix), absolute.parent_path() / artifact(suffix).filename());
   std::filesystem::rename(artifact(".elf"), absolute);

@@ -1,6 +1,6 @@
 # qsbit-compiler
 
-`qsbitc` compiles a small, static QIR program into a RISC-V executable for
+`qsbitc` compiles supported QIR programs into RISC-V executables for
 [qsbit-sim](https://github.com/qsbit-org/qsbit-sim). The first example prepares
 and measures a Bell pair using QIR exported by CUDA-Q.
 
@@ -40,7 +40,6 @@ python3 tools/run.py out/bell.elf \
 
 The simulator must be built with its Python backend enabled and its Aer extra
 installed. Follow [the simulator setup](https://github.com/qsbit-org/qsbit-sim/blob/main/docs/backends.md).
-This compiler was tested with simulator commit `de58836`.
 
 Each shot starts a fresh simulator process. Results are saved to
 `out/runs/results.json`; each shot also has a run configuration, execution trace,
@@ -70,17 +69,23 @@ measurement correlation, and the unmeasured Bell state amplitudes.
 
 ## Current scope
 
-The accepted input is a **static subset** of QIR Base Profile, not a complete
-QIR implementation. It supports `h`, `x`, `z`, `cnot` or `cx`, and terminal `mz`,
+The Base Profile subset supports `h`, `x`, `z`, `cnot` or `cx`, and terminal `mz`,
 with static qubit and result identifiers. Versioned input must declare QIR 1.0.
 A separate compatibility path accepts the unversioned static format emitted by
 CUDA-Q 0.16. Input may be LLVM text or bitcode.
 
-Programs are limited to 16 quantum operations and eight measurements. Operations
-run sequentially. There is no qubit placement, routing, optimization, branching,
-looping, reset, intermediate measurement feedback, or dynamic resource allocation.
-Unsupported instructions produce errors. The default target has two qubits;
-explicit target mappings can describe larger devices within the current limits.
+Base programs are limited to 16 quantum operations and eight measurements.
+Operations run sequentially.
+
+The [Adaptive Profile subset](docs/adaptive.md) supports intermediate
+measurements, branches, loops, reset and decoder feedback. Its
+[QEC examples](examples/qec/README.md) include a measurement loop and a
+three-qubit repetition code. The simulator repository includes a
+[distance-3 surface-code example](https://github.com/qsbit-org/qsbit-sim/tree/main/examples/qec).
+
+Qubit placement, routing and dynamic resource allocation are unsupported.
+The default target has two qubits; explicit mappings can describe up to 32.
+Unsupported instructions produce errors.
 
 See [the implementation contracts](docs/contracts.md),
 [CUDA-Q export instructions](integrations/cudaq/README.md), and

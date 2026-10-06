@@ -17,7 +17,9 @@ Adding an input framework should produce accepted QIR or introduce a separate
 frontend. Target mappings describe physical execution independently of the
 frontend's Python classes.
 
-## QIR input
+## Base Profile input
+
+[Adaptive QIR](adaptive.md) defines the control-flow subset and decoder runtime.
 
 Exactly one defined function must have `entry_point` and
 `qir_profiles="base_profile"`. It must return void, take no arguments, and
@@ -63,7 +65,7 @@ reports a flat bit string in leaf-record order.
 
 `targets/sim-default.json` is the initial target description. Schema 1 accepts
 only these top-level keys: `schema`, `name`, `qubits`, `ports`, `start_ns`,
-and `mappings`. Unknown keys are rejected.
+`mappings`, `block_cycles`, and `decoding`. Unknown keys are rejected.
 
 Each mapping contains `operation`, ordered `qubits`, `port`, `codeword`, and
 `duration_ns`. A port is a controller output endpoint, not a qubit identifier.
@@ -74,14 +76,14 @@ with its ordered qubits and the port with its codeword must be unique.
 Target limits are 1–32 qubits, 1–64 ports, codewords 0–65535, and operation
 durations 1–10000 ns. `start_ns` is between 10000 and 100000 ns and must align
 to 20 ns. Each mapping expands to one simulator action with no action delay,
-exclusive resources for its qubits, and a 20 ns discriminator delay.
+exclusive resources for its qubits, and a 20 ns discriminator delay for acquisitions.
 
 This target format fixes the CPU clock at 5 ns and the timing control unit
 (TCU) clock at 20 ns. The profile uses 32 timing entries, 32 event entries,
 16 staging entries, eight outstanding measurements per delivery path, and
 firing width one. The manifest embeds the target profile and transport latencies.
 
-## Scheduling and controller instructions
+## Base scheduling and controller instructions
 
 The first operation starts at TCU cycle 1. For an operation of duration `d` ns,
 the next operation starts `ceil(d / 20)` cycles later. The absolute start time
@@ -110,7 +112,7 @@ qubit; repeated output records reuse the captured bit.
 The program exits with `ECALL`, `a7 = 93` and `a0 = 0`. The simulator enqueues
 pending events and waits for device work and result deliveries to finish.
 
-## Executable and artifacts
+## Base executable and artifacts
 
 The ABI is `qsbit-static-v2`: little-endian ELF32, RISC-V machine type, entry
 address zero, no compressed instructions, and ELF flags zero. The startup

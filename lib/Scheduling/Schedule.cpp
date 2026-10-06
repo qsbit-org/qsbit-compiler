@@ -6,6 +6,8 @@ namespace qsbit {
 Schedule schedule(const Program &program, const Target &target) {
   if (program.qubits > target.qubits)
     throw std::runtime_error("schedule: target has too few qubits");
+  if (!program.adaptiveIR.empty())
+    return {};
   if (program.operations.size() > MaxOperations ||
       program.operations.size() > target.timingCapacity ||
       program.operations.size() > target.eventCapacity)

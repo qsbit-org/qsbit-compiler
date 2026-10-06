@@ -14,8 +14,9 @@ if(NOT LLD_VERSION MATCHES "LLD 21\\.")
   message(FATAL_ERROR "qsbit-compiler requires LLD 21: ${QSBIT_LLD}")
 endif()
 add_library(qsbit_compiler
-  lib/QIR/Reader.cpp lib/Target/Target.cpp
-  lib/Scheduling/Schedule.cpp lib/CodeGen/Emitter.cpp)
+  lib/QIR/Reader.cpp lib/QIR/Adaptive.cpp lib/Target/Target.cpp
+  lib/Scheduling/Schedule.cpp lib/Scheduling/Adaptive.cpp lib/Target/Mapping.cpp
+  lib/CodeGen/Emitter.cpp lib/CodeGen/Adaptive.cpp)
 target_include_directories(qsbit_compiler PUBLIC include)
 target_include_directories(qsbit_compiler SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
@@ -33,9 +34,19 @@ if(BUILD_TESTING)
   add_test(NAME compiler.contracts COMMAND "${Python3_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/tests/compiler_test.py" "$<TARGET_FILE:qsbitc>" "${PROJECT_SOURCE_DIR}")
   set_tests_properties(compiler.contracts PROPERTIES TIMEOUT 60)
+  add_test(NAME compiler.adaptive COMMAND "${Python3_EXECUTABLE}"
+    "${PROJECT_SOURCE_DIR}/tests/adaptive_test.py" "$<TARGET_FILE:qsbitc>" "${PROJECT_SOURCE_DIR}")
+  set_tests_properties(compiler.adaptive PROPERTIES TIMEOUT 60)
   set(QSBIT_SIM_EXECUTABLE "" CACHE FILEPATH "Optional qsbit-sim executable for integration tests")
   option(QSBIT_TEST_AER "Run numerical Bell integration tests (requires simulator Aer backend)" OFF)
+  option(QSBIT_TEST_QEC "Run decoder feedback tests (requires simulator QEC extra)" OFF)
   if(QSBIT_SIM_EXECUTABLE)
+    if(QSBIT_TEST_QEC)
+      add_test(NAME integration.qec COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/qec_test.py" "$<TARGET_FILE:qsbitc>"
+        "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}")
+      set_tests_properties(integration.qec PROPERTIES TIMEOUT 180)
+    endif()
     add_test(NAME integration.mock COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/integration_test.py" "$<TARGET_FILE:qsbitc>"
       "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}" mock)

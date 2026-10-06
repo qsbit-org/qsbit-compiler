@@ -1,0 +1,294 @@
+{
+  "schema": 1,
+  "name": "repetition-3",
+  "qubits": 5,
+  "ports": 5,
+  "start_ns": 10000,
+  "block_cycles": 1000,
+  "mappings": [
+    {
+      "operation": "x",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "x",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "x",
+      "qubits": [
+        2
+      ],
+      "port": 2,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        2
+      ],
+      "port": 2,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        2
+      ],
+      "port": 2,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        2
+      ],
+      "port": 2,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "x",
+      "qubits": [
+        3
+      ],
+      "port": 3,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        3
+      ],
+      "port": 3,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        3
+      ],
+      "port": 3,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        3
+      ],
+      "port": 3,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "x",
+      "qubits": [
+        4
+      ],
+      "port": 4,
+      "codeword": 1,
+      "duration_ns": 20
+    },
+    {
+      "operation": "h",
+      "qubits": [
+        4
+      ],
+      "port": 4,
+      "codeword": 2,
+      "duration_ns": 20
+    },
+    {
+      "operation": "z",
+      "qubits": [
+        4
+      ],
+      "port": 4,
+      "codeword": 3,
+      "duration_ns": 20
+    },
+    {
+      "operation": "measure",
+      "qubits": [
+        4
+      ],
+      "port": 4,
+      "codeword": 4,
+      "duration_ns": 40
+    },
+    {
+      "operation": "cx",
+      "qubits": [
+        0,
+        3
+      ],
+      "port": 0,
+      "codeword": 10,
+      "duration_ns": 40
+    },
+    {
+      "operation": "cx",
+      "qubits": [
+        1,
+        3
+      ],
+      "port": 1,
+      "codeword": 11,
+      "duration_ns": 40
+    },
+    {
+      "operation": "cx",
+      "qubits": [
+        1,
+        4
+      ],
+      "port": 1,
+      "codeword": 12,
+      "duration_ns": 40
+    },
+    {
+      "operation": "cx",
+      "qubits": [
+        2,
+        4
+      ],
+      "port": 2,
+      "codeword": 13,
+      "duration_ns": 40
+    }
+  ],
+  "decoding": {
+    "mmio_base": 1073741824,
+    "request_capacity": 2,
+    "result_capacity": 1,
+    "link_latency": 100,
+    "bytes_per_tick": 1,
+    "packet_overhead": 16,
+    "decoders": [
+      {
+        "id": 0,
+        "measurements": 2,
+        "outputs": 3,
+        "latency": 1000,
+        "initiation_interval": 1000,
+        "backend": "pymatching",
+        "options": {
+          "check_matrix": [
+            [
+              1,
+              1,
+              0
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          "observables": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "measurement_to_detector": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "weights": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    ]
+  }
+}

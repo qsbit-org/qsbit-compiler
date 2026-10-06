@@ -36,7 +36,7 @@ jobs:
         run: |
           python3 -m venv /tmp/qsbit-ci-tools
           /tmp/qsbit-ci-tools/bin/pip install uv==0.12.7
-          /tmp/qsbit-ci-tools/bin/uv sync --frozen --python 3.12 --group build --extra aer
+          /tmp/qsbit-ci-tools/bin/uv sync --frozen --python 3.12 --group build --extra aer --extra qec
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
       - name: Build simulator with Aer support
@@ -50,12 +50,18 @@ jobs:
       - name: Build compiler and register integration tests
         working-directory: qsbit-compiler
         run: |
-          cmake --preset clang-ninja -DBUILD_TESTING=ON -DQSBIT_TEST_AER=ON \
+          cmake --preset clang-ninja -DBUILD_TESTING=ON -DQSBIT_TEST_AER=ON -DQSBIT_TEST_QEC=ON \
             -DQSBIT_SIM_EXECUTABLE="$GITHUB_WORKSPACE/qsbit-sim/build-clang/qsbit-sim"
           cmake --build --preset clang-ninja --parallel 2
-      - name: Test preset measurement results and numerical Bell behavior
+      - name: Test measurement results, Bell states and decoder feedback
         working-directory: qsbit-compiler
-        run: ctest --preset clang-ninja --no-tests=error -R '^integration\.(mock|aer)$'
+        run: ctest --preset clang-ninja --no-tests=error -R '^integration\.(mock|aer|qec)$'
+      - name: Validate decoder configuration and surface-code example
+        working-directory: qsbit-sim
+        run: |
+          python tests/decoding.py
+          python examples/qec/run.py --compiler ../qsbit-compiler/build-clang/qsbitc \
+            --sim build-clang/qsbit-sim --output build-clang/qec --shots 2
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix="qsbit-contracts-") as tmp:
     check([r["result_id"] for r in manifest["outputs"] if r["kind"] == "result"] == [0, 1], "output order")
     plan = json.loads(elf.with_suffix(".schedule.json").read_text())["events"]
     check([event["tick_ns"] for event in plan] == [10020, 10040, 10060, 10100], "scheduled times")
-    compile_case(source.replace('"base_profile"', '"adaptive_profile"'), error="base_profile")
+    compile_case(source.replace('"base_profile"', '"adaptive_profile"'), error="required_num_qubits")
     compile_case(source.replace('"qir_profiles"="base_profile"', ''), error="base_profile")
     compile_case(source.replace("__quantum__qis__h__body", "__quantum__qis__reset__body"), error="unsupported call")
     compile_case(source.replace('"requiredQubits"="2"', '"requiredQubits"="1"'), error="exceeds declared")

@@ -41,10 +41,20 @@ Target readTarget(const std::filesystem::path &path) {
   auto *object = parsed->getAsObject();
   if (!object)
     fail("expected an object");
-  keys(*object, {"schema", "name", "qubits", "ports", "start_ns", "mappings"});
+  keys(*object,
+       {"schema", "name", "qubits", "ports", "start_ns", "mappings", "block_cycles", "decoding"});
   integer(*object, "schema", 1, 1);
   Target target;
   target.name = string(*object, "name");
+  if (object->get("block_cycles"))
+    target.blockCycles = integer(*object, "block_cycles", 1, 1000000);
+  if (auto *decoding = object->getObject("decoding")) {
+    target.decoding = llvm::json::Object(*decoding);
+    target.decoderBase = integer(*decoding, "mmio_base", 0, 0xffffffe0);
+    if (target.decoderBase % 4 || target.decoderBase < 0x100000)
+      fail("decoder MMIO must be aligned and outside program RAM");
+  } else if (object->get("decoding"))
+    fail("decoding must be an object");
   target.qubits = integer(*object, "qubits", 1, 32);
   const auto ports = integer(*object, "ports", 1, 64);
   target.start = integer(*object, "start_ns", 10000, 100000);
@@ -113,7 +123,7 @@ Target readTarget(const std::filesystem::path &path) {
                                       {"fast_result_latency", 2},
                                       {"timing_capacity", target.timingCapacity},
                                       {"event_capacity", target.eventCapacity},
-                                      {"staging_capacity", 16},
+                                      {"staging_capacity", target.stagingCapacity},
                                       {"result_capacity", target.resultCapacity},
                                       {"ports", ports},
                                       {"qubits", target.qubits},
