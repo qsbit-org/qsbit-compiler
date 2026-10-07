@@ -41,8 +41,9 @@ have zero parity and data bits.
 
 `repetition.target.json` sets the link delay, transfer bandwidth, queue
 capacities, decoder latency and initiation interval. Increase decoder
-`latency` to `1000000` to exceed the program's reserved feedback time. The
-simulator then stops with `LateAdmission`.
+`latency` to `100000` to exercise a delay beyond the fixed block interval.
+The generated `wait 0` instructions let the TCU pause while the CPU polls
+the decoder. The expected output bits stay unchanged; the stop tick increases.
 
 See [Adaptive QIR](../../docs/adaptive.md) for supported instructions, output
 layout and decoder calls.

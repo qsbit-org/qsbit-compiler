@@ -125,12 +125,14 @@ with tempfile.TemporaryDirectory(prefix="qsbit-qec-") as temporary:
             ]
 
     late = copy.deepcopy(target)
-    late["decoding"]["decoders"][0]["latency"] = 1000000
+    late["decoding"]["decoders"][0]["latency"] = 100000
     elf = compile_case("late", source, late)
-    process = subprocess.run(
-        [simulator, "--config", elf.with_suffix(".run.json")],
-        capture_output=True,
-        check=False,
-    )
-    summary = json.loads(elf.with_suffix(".summary.json").read_text())
-    assert process.returncode != 0 and summary["fault"] == "LateAdmission", summary
+    result, _ = runner.run(elf, simulator, "stim", 1, directory / "late")
+    assert result["counts"] == {"11000" + "00000" * 2: 1}, result
+    events = [
+        json.loads(line)
+        for line in (directory / "late/shot-0000.trace.jsonl").read_text().splitlines()
+    ]
+    assert any(e["kind"] == "TimerPaused" for e in events)
+    returned = [e["tick"] for e in events if e["kind"] == "DecoderResultReturned"]
+    assert len(returned) == 3 and returned[-1] > 300000, returned

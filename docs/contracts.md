@@ -101,7 +101,7 @@ and these funct3 values:
 | Value | Instruction | Use |
 | --- | --- | --- |
 | 0 | `cw.r.r` | Prepare events using port and codeword GPRs; rd is zero. |
-| 1 | `wait.r` | Advance the time point by the interval in rs1; rd and rs2 are zero. |
+| 1 | `wait.r` | Advance by the interval in rs1; zero permits the TCU to wait for subsequent work. rd and rs2 are zero. |
 | 3 | `FMR` | Copy a measurement register into rd; rs1 holds the qubit index and rs2 is zero. |
 
 LLVM emits these instructions through side-effecting inline assembly with

@@ -47,6 +47,9 @@ void wait(llvm::IRBuilder<> &b, std::uint32_t cycles) {
     assembly(b, ".insn r 0x0b, 1, 0, x0, $0, x0", "r,~{memory}", b.getVoidTy(),
              {b.getInt32(cycles)});
 }
+void waitForFeedback(llvm::IRBuilder<> &b) {
+  assembly(b, ".insn r 0x0b, 1, 0, x0, x0, x0", "~{memory}", b.getVoidTy(), {});
+}
 void cw(llvm::IRBuilder<> &b, const Mapping &m) {
   assembly(b, ".insn r 0x0b, 0, 0, x0, $0, $1", "r,r,~{memory}", b.getVoidTy(),
            {b.getInt32(m.port), b.getInt32(m.codeword)});
@@ -211,6 +214,7 @@ std::unique_ptr<llvm::Module> lowerAdaptive(const Program &program, const Target
         wait(b, timing.before);
         cw(b, m);
         if (operation == "measure" || operation == "reset") {
+          waitForFeedback(b);
           auto *value = fmr(b, qubits[0]);
           if (operation == "measure")
             b.CreateStore(value, resultPointer(call->getArgOperand(1)));
@@ -266,6 +270,7 @@ std::unique_ptr<llvm::Module> lowerAdaptive(const Program &program, const Target
         fail("unsupported call: " + name.str());
       } else {
         call->setAttributes(llvm::AttributeList{});
+        waitForFeedback(b);
       }
     }
     llvm::IRBuilder<> b(block->getTerminator());

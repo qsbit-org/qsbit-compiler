@@ -45,15 +45,20 @@ rounded up to TCU cycles.
 `block_cycles` is a target setting from 1 to 1000000, with default 1000. After
 each measurement and at each basic-block exit, the compiler emits a wait of
 at least `block_cycles`. Any unfinished operation duration extends that wait.
-Reset also reserves this interval after its conditional X. Runtime decoder
-polling does not advance the TCU time point.
+Reset also reserves this interval after its conditional X.
+
+Before each measurement read and decoder call, the compiler emits `wait.r x0`.
+After this zero wait triggers, an empty timing queue pauses the TCU logical
+timer while the CPU waits for the result. CPU instructions, decoder transport
+and quantum-state evolution continue in physical time. Subsequent work resumes
+the TCU; a positive-interval point restores strict deadlines when it triggers.
 
 The executed control-flow path determines the sequence of waits. Different
 branches can therefore reach a merge at different time points. Loops retain
-their runtime trip count. A command that arrives after its reserved time
-fails with `LateAdmission`; the simulator does not move the operation later.
-Choose `block_cycles` using the CPU, measurement and decoder delays for the
-experiment. These intervals are not a computed worst-case execution-time bound.
+their runtime trip count. Outside an explicit zero-wait region, a command that
+arrives after its reserved time fails with `LateAdmission`. Choose `block_cycles`
+to cover CPU issue time between feedback waits. It need not bound measurement
+or decoder latency protected by `wait 0`.
 
 ## Decoder calls
 
@@ -65,7 +70,7 @@ declare i64 @get_corrections_ui64(i64 %decoder, i64 %count, i64 %reset)
 
 The target's `decoding` object configures the simulator decoder and its MMIO
 base. The compiler lowers these calls to ordinary RV32I loads, stores and
-polling loops. CPU and TCU instructions remain unchanged.
+polling loops preceded by `wait 0`.
 
 Enqueue transfers 1–64 bits, least-significant bit first. Decoder IDs and tags
 must fit 32 bits. Get waits until all submitted input has completed and returns
@@ -105,5 +110,5 @@ profiles use a firing width equal to the port count and a 100000000 ns watchdog.
 `compiler.adaptive` checks accepted control flow, result assignment and rejected
 input. Enable `QSBIT_TEST_QEC` with `QSBIT_SIM_EXECUTABLE` to run
 `integration.qec`. It checks the measurement loop, correction of each single
-data-qubit error, repeated decoder use, process-order independence and late
-feedback failure.
+data-qubit error, repeated decoder use, process-order independence and feedback
+with decoder latency exceeding the fixed block interval.
