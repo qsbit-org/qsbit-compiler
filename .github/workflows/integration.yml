@@ -83,6 +83,7 @@ jobs:
         working-directory: qsbit-compiler
         run: |
           cmake --preset clang-ninja -DBUILD_TESTING=ON -DQSBIT_TEST_AER=ON -DQSBIT_TEST_QEC=ON \
+            -DPython3_EXECUTABLE="$VIRTUAL_ENV/bin/python" \
             -DQSBIT_SIM_EXECUTABLE="$RUNNER_TEMP/qsbit/bin/qsbit-sim" \
             -DQSBIT_BLOQ_EXPORTER="$GITHUB_WORKSPACE/bloq/target/debug/examples/export"
           cmake --build --preset clang-ninja --parallel 2
@@ -101,6 +102,12 @@ jobs:
         run: |
           python tests/decoding.py
           python examples/qec/run.py --output build-clang/qec --shots 2
+      - name: Validate Bloq example entry point
+        working-directory: qsbit-sim
+        run: |
+          "$VIRTUAL_ENV/bin/python" examples/bloq-qir/run.py \
+            --exporter "$GITHUB_WORKSPACE/bloq/target/debug/examples/export" \
+            --output build-clang/bloq-qir --shots 1
       - name: Upload test logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

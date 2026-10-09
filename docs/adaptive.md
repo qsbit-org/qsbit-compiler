@@ -135,7 +135,10 @@ with decoder latency exceeding the fixed block interval.
 For Bloq integration, build `bloq_qir`'s `export` example in the Bloq workspace,
 then configure this project with `QSBIT_BLOQ_EXPORTER` pointing to that executable
 and both `QSBIT_TEST_QEC=ON` and `QSBIT_TEST_AER=ON`. Select a Python
-interpreter with the QEC and Aer extras installed. Registered test `integration.bloq`
+interpreter with the QEC and Aer extras installed using
+`-DPython3_EXECUTABLE=/absolute/path/to/venv/bin/python`. CTest uses the
+configured interpreter regardless of the environment active when it runs.
+Registered test `integration.bloq`
 runs the Rust exporter, compiles both LLVM text and bitcode, and executes
 measurement feedback, phase gates, signed product measurements, bounded retries,
 all three repetition-code errors, protection during decoder latency, and a
@@ -144,3 +147,7 @@ Conditional protection waits and RUS entry cover both activation paths and
 repeated observable queries. Multibit decoder results exercise correction-bit
 selection with higher bits set.
 Retry and wait exhaustion must preserve nonzero status and yield no accepted shot.
+
+The cross-project workflow runs these tests against qsbit-sim main. It also
+runs the simulator's Bloq example once with the installed tools to check its
+entry point and generated artifacts.
