@@ -78,7 +78,9 @@ Base programs are limited to 16 quantum operations and eight measurements.
 Operations run sequentially.
 
 The [Adaptive Profile subset](docs/adaptive.md) supports intermediate
-measurements, branches, loops, reset and decoder feedback. Its
+measurements, branches, loops, reset, S/T gates and decoder feedback.
+It accepts the implemented QIR 2.1 Adaptive subset with `i64` entry status and
+constant output labels, plus existing QIR 1.0 input. Its
 [QEC examples](examples/qec/README.md) include a measurement loop and a
 three-qubit repetition code. The simulator repository includes a
 [distance-3 surface-code example](https://github.com/qsbit-org/qsbit-sim/tree/main/examples/qec).

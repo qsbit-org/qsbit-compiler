@@ -56,16 +56,19 @@ Program readAdaptive(llvm::Module &input) {
       entry = &fn;
     }
   if (!entry || !entry->arg_empty() || entry->isVarArg() || entry->isDeclaration() ||
-      !entry->getReturnType()->isVoidTy())
-    fail("entry must be void with no arguments");
+      (!entry->getReturnType()->isVoidTy() && !entry->getReturnType()->isIntegerTy(64)))
+    fail("entry must return void or i64 with no arguments");
   program.entry = entry->getName().str();
   if (module->getModuleFlag("qir_major_version") || module->getModuleFlag("qir_minor_version")) {
     auto *major = module->getModuleFlag("qir_major_version");
     auto *v = llvm::mdconst::dyn_extract_or_null<llvm::ConstantInt>(major);
     auto *minor = llvm::mdconst::dyn_extract_or_null<llvm::ConstantInt>(
         module->getModuleFlag("qir_minor_version"));
-    if (!v || !minor || !v->equalsInt(1) || !minor->isZero())
-      fail("only QIR 1.0 is supported");
+    if (!v || !minor ||
+        !((v->equalsInt(1) && minor->isZero()) || (v->equalsInt(2) && minor->equalsInt(1))))
+      fail("supported Adaptive versions are QIR 1.0 and QIR 2.1");
+    if (v->equalsInt(2) && !entry->getReturnType()->isIntegerTy(64))
+      fail("QIR 2.1 entry must return i64");
   }
   auto count = [&](llvm::StringRef name) {
     std::uint32_t value = 0;

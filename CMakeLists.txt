@@ -39,6 +39,7 @@ if(BUILD_TESTING)
   set_tests_properties(compiler.adaptive PROPERTIES TIMEOUT 60)
   set(QSBIT_SIM_EXECUTABLE "" CACHE FILEPATH "Optional qsbit-sim executable for integration tests")
   option(QSBIT_TEST_AER "Run numerical Bell integration tests (requires simulator Aer backend)" OFF)
+  set(QSBIT_BLOQ_EXPORTER "" CACHE FILEPATH "Optional built bloq_qir export example for end-to-end tests")
   option(QSBIT_TEST_QEC "Run decoder feedback tests (requires simulator QEC extra)" OFF)
   if(QSBIT_SIM_EXECUTABLE)
     if(QSBIT_TEST_QEC)
@@ -46,6 +47,12 @@ if(BUILD_TESTING)
         "${PROJECT_SOURCE_DIR}/tests/qec_test.py" "$<TARGET_FILE:qsbitc>"
         "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}")
       set_tests_properties(integration.qec PROPERTIES TIMEOUT 180)
+      if(QSBIT_BLOQ_EXPORTER AND QSBIT_TEST_AER)
+        add_test(NAME integration.bloq COMMAND "${Python3_EXECUTABLE}"
+          "${PROJECT_SOURCE_DIR}/tests/bloq_integration_test.py" "$<TARGET_FILE:qsbitc>"
+          "${PROJECT_SOURCE_DIR}" "${QSBIT_SIM_EXECUTABLE}" "${QSBIT_BLOQ_EXPORTER}")
+        set_tests_properties(integration.bloq PROPERTIES TIMEOUT 600)
+      endif()
     endif()
     add_test(NAME integration.mock COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/integration_test.py" "$<TARGET_FILE:qsbitc>"

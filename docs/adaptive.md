@@ -8,13 +8,17 @@ local measurement feedback and external decoding.
 
 ## Input
 
-The entry point returns void and takes no arguments. It declares
+The entry point takes no arguments. QIR 2.1 entries return an `i64` program
+status; existing QIR 1.0 entries may return void or `i64`. It declares
 `required_num_qubits` and `required_num_results`. Qubits use static identifiers
 from 0 to 31; results use static identifiers within the declared count, which
-is at most 65536. Version flags, when supplied, must specify QIR 1.0. Dynamic
-resource management must be disabled.
+is at most 65536. Version flags, when supplied, must specify QIR 1.0 or 2.1.
+Dynamic resource management must be disabled.
 
-Supported quantum operations are `h`, `x`, `z`, `cx`, `cnot`, `mz` and `reset`.
+Supported quantum operations are `h`, `x`, `z`, `s`, `s` adjoint, `t`,
+`t` adjoint, `cx`, `cnot`, `mz` and `reset`. Target operation names for
+the phase gates are `s`, `sdg`, `t` and `tdg`; non-Clifford gates require
+a compatible simulator backend, such as Aer.
 Reset emits a measurement followed by X when the measurement is 1.
 `__quantum__rt__read_result` and `__quantum__qis__read_result__body` return `i1`.
 Every result read must follow an assignment on all incoming control-flow paths.
@@ -30,8 +34,9 @@ input globals, local memory operations, floating-point arithmetic and
 unrecognized calls produce errors.
 
 Output uses `__quantum__rt__result_record_output(ptr, ptr)` or
-`__quantum__rt__bool_record_output(i1, ptr)`. Labels must be null. Container
-records are unsupported. An optional `__quantum__rt__initialize(ptr null)`
+`__quantum__rt__bool_record_output(i1, ptr)`. Labels may be null or constant
+strings. The flat output buffer preserves call order; label names are not stored.
+Container records are unsupported. An optional `__quantum__rt__initialize(ptr null)`
 requires no runtime action.
 
 ## Timing
@@ -66,6 +71,7 @@ or decoder latency protected by `wait 0`.
 declare void @reset_decoder_ui64(i64 %decoder)
 declare void @enqueue_syndromes_ui64(i64 %decoder, i64 %count, i64 %bits, i64 %tag)
 declare i64 @get_corrections_ui64(i64 %decoder, i64 %count, i64 %reset)
+declare i1 @decoder_ready_ui64(i64 %decoder)
 ```
 
 The target's `decoding` object configures the simulator decoder and its MMIO
@@ -79,9 +85,16 @@ output width. Reset must be 0 or 1. A value of 1 consumes the result. Explicit
 reset waits for the decoder to clear its measurement window and corrections.
 Invalid arguments trap before the operation proceeds.
 
-The declarations follow the
+`decoder_ready_ui64` performs one status read and returns true only when
+an unread result exists and no work remains on the selected session. It
+neither waits for decoding nor consumes corrections. A QIR branch can execute
+a protection circuit and poll again while false. The existing get call
+remains blocking even when its consumption argument is zero.
+
+The first three declarations follow the
 [CUDA-Q QEC Quantinuum device interface](https://github.com/NVIDIA/cudaq-qec/blob/main/libs/qec/lib/realtime/quantinuum/quantinuum_decoding.h).
-They are external functions, not standard QIR instructions. The checked-in
+All four are external functions, not standard QIR instructions.
+The readiness query is a local extension of the existing decoder interface. The checked-in
 examples supply these declarations directly. CUDA-Q's complete QEC export
 pipeline has not been validated against this compiler.
 
@@ -100,6 +113,12 @@ requests a memory dump, which `tools/run.py` reads to recover the output stream.
 The runner verifies the ELF digest, target profile and decoder configuration.
 Each shot starts a new simulator process.
 
+The entry status is returned through the exit ECALL in register `a0`.
+The simulator reports it as `exit_code` independently of architectural faults.
+The runner includes only status-zero shots in `counts`; nonzero program
+statuses are counted separately in `exit_codes`. The controller retains
+32 status bits, so this subset requires statuses in the range 0–63.
+
 The schedule artifact records `mode: control-flow`, the target start, TCU
 period and `block_cycles`. The lowered LLVM IR contains the emitted waits and
 branches; the simulator trace records the executed operation times. Adaptive
@@ -112,3 +131,13 @@ input. Enable `QSBIT_TEST_QEC` with `QSBIT_SIM_EXECUTABLE` to run
 `integration.qec`. It checks the measurement loop, correction of each single
 data-qubit error, repeated decoder use, process-order independence and feedback
 with decoder latency exceeding the fixed block interval.
+
+For Bloq integration, build `bloq_qir`'s `export` example in the Bloq workspace,
+then configure this project with `QSBIT_BLOQ_EXPORTER` pointing to that executable
+and both `QSBIT_TEST_QEC=ON` and `QSBIT_TEST_AER=ON`. Select a Python
+interpreter with the QEC and Aer extras installed. Registered test `integration.bloq`
+runs the Rust exporter, compiles both LLVM text and bitcode, and executes
+measurement feedback, phase gates, signed product measurements, bounded retries,
+all three repetition-code errors, protection during decoder latency, and a
+Bloq-compiled d3 X-memory with an independent Stim/PyMatching reference.
+Retry and wait exhaustion must preserve nonzero status and yield no accepted shot.

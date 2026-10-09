@@ -74,7 +74,8 @@ Target readTarget(const std::filesystem::path &path) {
     Mapping mapping;
     mapping.operation = string(*spec, "operation");
     if (mapping.operation != "h" && mapping.operation != "x" && mapping.operation != "z" &&
-        mapping.operation != "cx" && mapping.operation != "measure")
+        mapping.operation != "cx" && mapping.operation != "measure" && mapping.operation != "s" &&
+        mapping.operation != "sdg" && mapping.operation != "t" && mapping.operation != "tdg")
       fail("unsupported operation " + mapping.operation);
     mapping.port = integer(*spec, "port", 0, ports - 1);
     mapping.codeword = integer(*spec, "codeword", 0, 65535);

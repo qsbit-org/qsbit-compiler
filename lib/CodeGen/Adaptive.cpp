@@ -1,4 +1,5 @@
 #include "qsbit/Compiler.hpp"
+#include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
@@ -22,6 +23,14 @@ std::string gate(llvm::StringRef name) {
     return "x";
   if (name == "__quantum__qis__z__body")
     return "z";
+  if (name == "__quantum__qis__s__body")
+    return "s";
+  if (name == "__quantum__qis__s__adj")
+    return "sdg";
+  if (name == "__quantum__qis__t__body")
+    return "t";
+  if (name == "__quantum__qis__t__adj")
+    return "tdg";
   if (name == "__quantum__qis__cx__body" || name == "__quantum__qis__cnot__body")
     return "cx";
   if (name == "__quantum__qis__mz__body")
@@ -68,8 +77,8 @@ llvm::Value *load(llvm::IRBuilder<> &b, const Target &target, unsigned offset) {
   return b.CreateLoad(b.getInt32Ty(), reg(b, target, offset), true);
 }
 void decoderFunctions(llvm::Module &module, const Target &target) {
-  for (const auto *name :
-       {"reset_decoder_ui64", "enqueue_syndromes_ui64", "get_corrections_ui64"}) {
+  for (const auto *name : {"reset_decoder_ui64", "enqueue_syndromes_ui64", "get_corrections_ui64",
+                           "decoder_ready_ui64"}) {
     auto *fn = module.getFunction(name);
     if (!fn || fn->use_empty())
       continue;
@@ -77,12 +86,14 @@ void decoderFunctions(llvm::Module &module, const Target &target) {
       fail("decoder call requires target.decoding");
     if (!fn->isDeclaration())
       fail("decoder interface must be an external declaration");
+    const bool readyQuery = llvm::StringRef(name) == "decoder_ready_ui64";
     const bool enqueue = llvm::StringRef(name).starts_with("enqueue");
     const bool reset = llvm::StringRef(name).starts_with("reset");
-    const unsigned arity = enqueue ? 4 : reset ? 1 : 3;
+    const unsigned arity = enqueue ? 4 : (reset || readyQuery) ? 1 : 3;
     if (fn->arg_size() != arity || fn->isVarArg() ||
-        (enqueue || reset ? !fn->getReturnType()->isVoidTy()
-                          : !fn->getReturnType()->isIntegerTy(64)))
+        (readyQuery ? !fn->getReturnType()->isIntegerTy(1)
+                    : (enqueue || reset ? !fn->getReturnType()->isVoidTy()
+                                        : !fn->getReturnType()->isIntegerTy(64))))
       fail("invalid decoder function signature");
     for (auto &arg : fn->args())
       if (!arg.getType()->isIntegerTy(64))
@@ -94,7 +105,7 @@ void decoderFunctions(llvm::Module &module, const Target &target) {
     auto *bad = llvm::BasicBlock::Create(c, "invalid", fn);
     auto *body = llvm::BasicBlock::Create(c, "body", fn);
     llvm::Value *valid = b.CreateICmpULE(fn->getArg(0), b.getInt64(UINT32_MAX));
-    if (!reset) {
+    if (!reset && !readyQuery) {
       valid = b.CreateAnd(valid, b.CreateICmpUGE(fn->getArg(1), b.getInt64(1)));
       valid = b.CreateAnd(valid, b.CreateICmpULE(fn->getArg(1), b.getInt64(64)));
       valid = b.CreateAnd(valid, b.CreateICmpULE(fn->getArg(enqueue ? 3 : 2),
@@ -106,14 +117,19 @@ void decoderFunctions(llvm::Module &module, const Target &target) {
     b.CreateUnreachable();
     b.SetInsertPoint(body);
     store(b, target, 0, fn->getArg(0));
-    if (!enqueue && !reset) {
+    if (!enqueue && !reset && !readyQuery) {
       auto *widthChecked = llvm::BasicBlock::Create(c, "width_checked", fn);
       b.CreateCondBr(
           b.CreateICmpEQ(b.CreateZExt(load(b, target, 4), b.getInt64Ty()), fn->getArg(1)),
           widthChecked, bad);
       b.SetInsertPoint(widthChecked);
     }
-    if (enqueue) {
+    if (readyQuery) {
+      // Match get_corrections: an unread result exists and no work remains.
+      // This read never consumes the result or waits for decoder progress.
+      auto *status = load(b, target, 20);
+      b.CreateRet(b.CreateICmpEQ(b.CreateAnd(status, b.getInt32(3)), b.getInt32(1)));
+    } else if (enqueue) {
       store(b, target, 4, fn->getArg(1));
       store(b, target, 8, fn->getArg(2));
       store(b, target, 12, b.CreateLShr(fn->getArg(2), 32));
@@ -240,8 +256,10 @@ std::unique_ptr<llvm::Module> lowerAdaptive(const Program &program, const Target
                  name == "__quantum__rt__bool_record_output") {
         if (call->arg_size() != 2 || !call->getType()->isVoidTy())
           fail("invalid output signature");
-        if (!llvm::isa<llvm::ConstantPointerNull>(call->getArgOperand(1)))
-          fail("adaptive output labels must be null");
+        llvm::StringRef label;
+        if (!llvm::isa<llvm::ConstantPointerNull>(call->getArgOperand(1)) &&
+            !llvm::getConstantStringInfo(call->getArgOperand(1), label))
+          fail("adaptive output label must be a constant string or null");
         auto *index = b.CreateLoad(i32, outputCount);
         // The output buffer has 16383 words; wrap is forbidden.
         assembly(b, "li t6, 16383\nbltu $0, t6, 1f\n.word 0\n1:", "r,~{t6},~{memory}",
@@ -266,7 +284,7 @@ std::unique_ptr<llvm::Module> lowerAdaptive(const Program &program, const Target
           fail("invalid initialize");
         call->eraseFromParent();
       } else if (name != "reset_decoder_ui64" && name != "enqueue_syndromes_ui64" &&
-                 name != "get_corrections_ui64") {
+                 name != "get_corrections_ui64" && name != "decoder_ready_ui64") {
         fail("unsupported call: " + name.str());
       } else {
         call->setAttributes(llvm::AttributeList{});
@@ -276,7 +294,20 @@ std::unique_ptr<llvm::Module> lowerAdaptive(const Program &program, const Target
     llvm::IRBuilder<> b(block->getTerminator());
     wait(b, schedule.finish());
     if (llvm::isa<llvm::ReturnInst>(block->getTerminator())) {
-      assembly(b, "li a0, 0\nli a7, 93\necall", "~{a0},~{a7},~{memory}", b.getVoidTy(), {});
+      auto *returned = llvm::cast<llvm::ReturnInst>(block->getTerminator())->getReturnValue();
+      if (returned) {
+        if (auto *constant = llvm::dyn_cast<llvm::ConstantInt>(returned)) {
+          if (constant->getValue().ugt(63))
+            fail("entry exit status must be in the range 0-63");
+        } else {
+          auto *valid = b.CreateICmpULE(returned, b.getInt64(63));
+          assembly(b, "bnez $0, 1f\n.word 0\n1:", "r,~{memory}", b.getVoidTy(),
+                   {b.CreateZExt(valid, i32)});
+        }
+      }
+      auto *status = returned ? b.CreateTruncOrBitCast(returned, i32) : b.getInt32(0);
+      assembly(b, "mv a0, $0\nli a7, 93\necall", "r,~{a0},~{a7},~{memory}", b.getVoidTy(),
+               {status});
       b.CreateUnreachable();
       block->getTerminator()->eraseFromParent();
     }

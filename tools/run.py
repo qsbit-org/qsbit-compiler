@@ -39,6 +39,7 @@ def run(elf, simulator, backend, shots, output, seed=1):
     output.mkdir(parents=True, exist_ok=True)
     counts = Counter()
     summaries = []
+    exit_codes = Counter()
     for shot in range(shots):
         current = dict(config)
         current["profile"] = dict(config["profile"], seed=seed + shot)
@@ -59,6 +60,11 @@ def run(elf, simulator, backend, shots, output, seed=1):
             reg["pending"] for reg in summary["measurement_registers"]
         ):
             raise ValueError(f"shot {shot} has unfinished measurements")
+        exit_code = summary.get("exit_code", 0)
+        if exit_code:
+            exit_codes[str(exit_code)] += 1
+            summaries.append(summary)
+            continue
         values = [summary["memory"][str(address)] for address in addresses]
         if adaptive:
             memory = Path(current["memory_dump"]).read_bytes()
@@ -77,6 +83,8 @@ def run(elf, simulator, backend, shots, output, seed=1):
         "bit_order": "QIR result_record_output order",
         "counts": dict(sorted(counts.items())),
     }
+    if exit_codes:
+        result["exit_codes"] = dict(sorted(exit_codes.items()))
     (output / "results.json").write_text(json.dumps(result, indent=2) + "\n")
     return result, summaries
 
