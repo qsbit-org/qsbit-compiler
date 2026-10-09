@@ -9,7 +9,7 @@
 - `lib/Scheduling` assigns each operation a controller cycle.
 - `lib/CodeGen` lowers the schedule into LLVM IR, emits an RV32I object, links
   it with LLD, and validates the resulting ELF.
-- `tools/run.py` validates the artifact bundle and launches independent shots.
+- `qsbit-run` validates the artifact bundle and launches independent shots.
 
 The normalized program and schedule are C++ structures in
 `include/qsbit/Compiler.hpp`. They are internal APIs, not a stable external IR.

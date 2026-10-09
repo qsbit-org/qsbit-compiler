@@ -19,6 +19,8 @@ sudo apt-get install -y build-essential cmake ninja-build python3 \
 cmake --preset clang-ninja
 cmake --build --preset clang-ninja --parallel 4
 ctest --preset clang-ninja
+cmake --install build-clang --prefix "$HOME/.local"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Use `gcc-ninja` instead of `clang-ninja` to build the host compiler with GCC.
@@ -27,19 +29,37 @@ Other distributions need equivalent packages, CMake 3.24 or newer, and Ninja.
 If several LLVM installations exist, pass `-DLLVM_DIR=/path/to/llvm/lib/cmake/llvm`
 to the configure command. The matching LLVM build must include RISC-V support.
 
+Add the PATH setting to your shell configuration. Install the Python runner
+with [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv tool install .
+uv tool update-shell
+```
+
+Reopen your shell if `uv tool update-shell` changes its configuration.
+`qsbit-run` is the installed runner command. The native `qsbitc` executable is
+installed separately by CMake. LLVM and LLD 21 remain runtime dependencies.
+
 ## Compile and run Bell
 
 Run these commands from the compiler repository root:
 
 ```sh
-build-clang/qsbitc examples/bell.ll \
+qsbitc examples/bell.ll \
   --target targets/sim-default.json -o out/bell.elf
-python3 tools/run.py out/bell.elf \
-  --sim ../qsbit-sim/build-clang/qsbit-sim --backend aer --shots 16
+qsbit-run out/bell.elf --backend mock --shots 1
 ```
 
-The simulator must be built with its Python backend enabled and its Aer extra
-installed. Follow [the simulator setup](https://github.com/qsbit-org/qsbit-sim/blob/main/docs/backends.md).
+Install `qsbit-sim` on PATH. Use `--sim PATH` to select another executable.
+For numerical measurements, enable the simulator's Python bridge and install
+Aer in its runtime environment following
+[the simulator setup](https://github.com/qsbit-org/qsbit-sim/blob/main/docs/backends.md#python-runtime),
+then run:
+
+```sh
+qsbit-run out/bell.elf --backend aer --shots 16
+```
 
 Each shot starts a fresh simulator process. Results are saved to
 `out/runs/results.json`; each shot also has a run configuration, execution trace,

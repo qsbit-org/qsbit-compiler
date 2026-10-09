@@ -14,7 +14,7 @@ import pymatching
 import stim
 
 compiler, root, simulator, exporter = map(Path, sys.argv[1:])
-spec = importlib.util.spec_from_file_location("runner", root / "tools/run.py")
+spec = importlib.util.spec_from_file_location("runner", root / "python/qsbit_compiler/runner.py")
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 

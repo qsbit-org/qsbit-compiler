@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import shutil
 import struct
 import subprocess
 from collections import Counter
@@ -36,6 +37,12 @@ def run(elf, simulator, backend, shots, output, seed=1):
         raise ValueError("run result layout does not match the manifest")
     if shots < 1 or seed < 0 or seed + shots - 1 > 0xFFFFFFFF:
         raise ValueError("invalid shot count or seed range")
+    selected = shutil.which(str(simulator))
+    if selected is None:
+        raise ValueError(
+            f"simulator not found: {simulator}; install qsbit-sim or pass --sim PATH"
+        )
+    simulator = str(Path(selected).resolve())
     output.mkdir(parents=True, exist_ok=True)
     counts = Counter()
     summaries = []
@@ -53,7 +60,10 @@ def run(elf, simulator, backend, shots, output, seed=1):
         run_path = output / f"shot-{shot:04d}.run.json"
         run_path.write_text(json.dumps(current, indent=2) + "\n")
         subprocess.run(
-            [str(simulator), "--config", str(run_path)], check=True, capture_output=True
+            [str(simulator), "--config", str(run_path)],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         summary = json.loads(summary_path.read_text())
         if not summary["success"] or any(
@@ -92,7 +102,11 @@ def run(elf, simulator, backend, shots, output, seed=1):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
-    parser.add_argument("--sim", required=True, type=Path)
+    parser.add_argument(
+        "--sim",
+        default="qsbit-sim",
+        help="simulator command or path (default: PATH lookup)",
+    )
     parser.add_argument("--backend", default="aer")
     parser.add_argument("--shots", type=int, default=16)
     parser.add_argument("--seed", type=int, default=1)
@@ -102,8 +116,13 @@ def main():
         result, _ = run(
             args.elf, args.sim, args.backend, args.shots, args.out_dir, args.seed
         )
-    except (ValueError, OSError, subprocess.CalledProcessError) as error:
-        parser.exit(1, f"qsbit runner: {error}\n")
+    except subprocess.CalledProcessError as error:
+        parser.exit(
+            1,
+            f"qsbit-run: simulator exited with status {error.returncode}\n{error.stderr}",
+        )
+    except (ValueError, OSError) as error:
+        parser.exit(1, f"qsbit-run: {error}\n")
     print(json.dumps(result, indent=2))
 
 

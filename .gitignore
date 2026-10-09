@@ -3,4 +3,6 @@
 /.venv*/
 __pycache__/
 *.pyc
+*.egg-info/
+dist/
 /compile_commands.json

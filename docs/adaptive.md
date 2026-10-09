@@ -109,7 +109,7 @@ the stack starts at `0xffff0`, text stays below `0x10000`, and data starts at
 follow at `0x10004`, each in a little-endian 32-bit word. Output overflow traps.
 
 The manifest records this layout and the decoder configuration. The run file
-requests a memory dump, which `tools/run.py` reads to recover the output stream.
+requests a memory dump, which `qsbit-run` reads to recover the output stream.
 The runner verifies the ELF digest, target profile and decoder configuration.
 Each shot starts a new simulator process.
 
