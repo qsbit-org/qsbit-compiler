@@ -140,4 +140,7 @@ runs the Rust exporter, compiles both LLVM text and bitcode, and executes
 measurement feedback, phase gates, signed product measurements, bounded retries,
 all three repetition-code errors, protection during decoder latency, and a
 Bloq-compiled d3 X-memory with an independent Stim/PyMatching reference.
+Conditional protection waits and RUS entry cover both activation paths and
+repeated observable queries. Multibit decoder results exercise correction-bit
+selection with higher bits set.
 Retry and wait exhaustion must preserve nonzero status and yield no accepted shot.
