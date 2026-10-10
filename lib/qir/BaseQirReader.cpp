@@ -1,4 +1,5 @@
-#include "qsbit/Compiler.hpp"
+#include "qir/AdaptiveIR.hpp"
+#include "qir/QirReader.hpp"
 #include <limits>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/Constants.h>
@@ -69,7 +70,9 @@ void signature(const llvm::CallInst &call, unsigned arguments) {
 } // namespace
 
 Program readQIR(const std::filesystem::path &path) {
-  llvm::LLVMContext context;
+  auto owned = std::make_unique<AdaptiveIR>();
+  owned->context = std::make_unique<llvm::LLVMContext>();
+  auto &context = *owned->context;
   llvm::SMDiagnostic diagnostic;
   auto module = llvm::parseIRFile(path.string(), diagnostic, context);
   if (!module) {
@@ -92,8 +95,10 @@ Program readQIR(const std::filesystem::path &path) {
   }
   if (!entry || entry->isDeclaration())
     fail("expected one defined entry_point");
-  if (entry->getFnAttribute("qir_profiles").getValueAsString() == "adaptive_profile")
-    return readAdaptive(*module);
+  if (entry->getFnAttribute("qir_profiles").getValueAsString() == "adaptive_profile") {
+    owned->module = std::move(module);
+    return readAdaptive(std::move(owned));
+  }
   for (auto &function : *module)
     if (!function.isDeclaration() && &function != entry)
       fail("helper function definitions are unsupported");
@@ -106,6 +111,7 @@ Program readQIR(const std::filesystem::path &path) {
   if (!module->getModuleInlineAsm().empty())
     fail("module assembly is unsupported");
   Program program;
+  auto &body = std::get<StaticProgram>(program.body);
   program.entry = entry->getName().str();
   program.qubits = attributeCount(*entry, "required_num_qubits", "requiredQubits");
   program.results = attributeCount(*entry, "required_num_results", "requiredResults");
@@ -165,17 +171,17 @@ Program readQIR(const std::filesystem::path &path) {
         auto id = identifier(call->getArgOperand(0), program.results);
         if (!assigned.contains(id))
           fail("output refers to an unmeasured result");
-        program.outputs.push_back({"result", id, outputLabel});
+        body.outputs.push_back({"result", id, outputLabel});
       } else {
         if (!call->getArgOperand(0)->getType()->isIntegerTy(64))
           fail("output container size must be i64");
         auto count = number(call->getArgOperand(0));
         if (count > 64 || containers.size() >= 16)
           fail("output container exceeds supported bounds");
-        program.outputs.push_back({name.contains("array") ? "array" : "tuple", count, outputLabel});
+        body.outputs.push_back({name.contains("array") ? "array" : "tuple", count, outputLabel});
         containers.push_back(count);
       }
-      if (program.outputs.size() > 128)
+      if (body.outputs.size() > 128)
         fail("too many output records");
       continue;
     }
@@ -185,13 +191,13 @@ Program readQIR(const std::filesystem::path &path) {
     if (name == "__quantum__qis__h__body" || name == "__quantum__qis__x__body" ||
         name == "__quantum__qis__z__body") {
       signature(*call, 1);
-      op.name = name == "__quantum__qis__h__body"   ? "h"
-                : name == "__quantum__qis__x__body" ? "x"
-                                                    : "z";
+      op.name = name == "__quantum__qis__h__body"   ? QuantumOp::H
+                : name == "__quantum__qis__x__body" ? QuantumOp::X
+                                                    : QuantumOp::Z;
       op.qubits = {identifier(call->getArgOperand(0), program.qubits)};
     } else if (name == "__quantum__qis__cnot__body" || name == "__quantum__qis__cx__body") {
       signature(*call, 2);
-      op.name = "cx";
+      op.name = QuantumOp::Cx;
       op.qubits = {identifier(call->getArgOperand(0), program.qubits),
                    identifier(call->getArgOperand(1), program.qubits)};
       if (op.qubits[0] == op.qubits[1])
@@ -199,7 +205,7 @@ Program readQIR(const std::filesystem::path &path) {
     } else if (name == "__quantum__qis__mz__body") {
       signature(*call, 2);
       measurementPhase = true;
-      op.name = "measure";
+      op.name = QuantumOp::MeasureZ;
       auto qubit = identifier(call->getArgOperand(0), program.qubits);
       auto result = identifier(call->getArgOperand(1), program.results);
       if (!measured.insert(qubit).second || !assigned.insert(result).second)
@@ -209,10 +215,10 @@ Program readQIR(const std::filesystem::path &path) {
     } else {
       fail("unsupported call: " + name.str());
     }
-    if (measurementPhase && op.name != "measure")
+    if (measurementPhase && op.name != QuantumOp::MeasureZ)
       fail("unitary gates after measurement are unsupported");
-    program.operations.push_back(std::move(op));
-    if (program.operations.size() > MaxOperations)
+    body.operations.push_back(std::move(op));
+    if (body.operations.size() > MaxOperations)
       fail("program exceeds the static scheduler limit of 16 operations");
   }
   for (auto remaining : containers)

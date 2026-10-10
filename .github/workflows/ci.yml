@@ -20,7 +20,7 @@ jobs:
             clang-21 llvm-21-dev llvm-21-tools lld-21 clang-format-21 clang-tidy-21
       - uses: actions/checkout@v4
       - name: Check formatting
-        run: clang-format-21 --dry-run --Werror include/qsbit/*.hpp lib/*/*.cpp tools/qsbitc/main.cpp
+        run: clang-format-21 --dry-run --Werror lib/*/*.hpp lib/*/*.cpp tests/*.cpp tools/qsbitc/main.cpp
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
       - name: Build

@@ -14,7 +14,7 @@ On Ubuntu 26.04:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential cmake ninja-build python3 \
+sudo apt-get install -y build-essential cmake ninja-build python3 git \
   clang-21 llvm-21-dev llvm-21-tools lld-21 clang-format-21 clang-tidy-21
 cmake --preset clang-ninja
 cmake --build --preset clang-ninja --parallel 4
@@ -25,6 +25,9 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Use `gcc-ninja` instead of `clang-ninja` to build the host compiler with GCC.
 Both choices use LLVM 21 and LLD 21 to generate the RISC-V executable.
+CMake uses an installed controller contract package or downloads its pinned
+revision. See [controller contracts](docs/contracts.md#controller-contract-package)
+for local and offline builds.
 Other distributions need equivalent packages, CMake 3.24 or newer, and Ninja.
 If several LLVM installations exist, pass `-DLLVM_DIR=/path/to/llvm/lib/cmake/llvm`
 to the configure command. The matching LLVM build must include RISC-V support.

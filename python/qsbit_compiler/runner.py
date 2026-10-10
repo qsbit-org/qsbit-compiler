@@ -9,11 +9,25 @@ import struct
 import subprocess
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 
-def run(elf, simulator, backend, shots, output, seed=1):
+class ArtifactBundle(NamedTuple):
+    elf: Path
+    config: dict
+    adaptive: bool
+    addresses: list
+    layout: dict | None
+
+
+class Shot(NamedTuple):
+    config: dict
+    run_path: Path
+    summary_path: Path
+
+
+def load_bundle(elf):
     elf = Path(elf).resolve()
-    output = Path(output).resolve()
     manifest = json.loads(elf.with_suffix(".manifest.json").read_text())
     config = json.loads(elf.with_suffix(".run.json").read_text())
     if manifest.get("abi") not in ("qsbit-static-v2", "qsbit-adaptive-v1"):
@@ -35,6 +49,57 @@ def run(elf, simulator, backend, shots, output, seed=1):
     layout = manifest.get("output_buffer")
     if config["inspect"] != ([layout["count_address"]] if adaptive else addresses):
         raise ValueError("run result layout does not match the manifest")
+    return ArtifactBundle(elf, config, adaptive, addresses, layout)
+
+
+def prepare_shot(bundle, backend, output, shot, seed):
+    current = dict(bundle.config)
+    current["profile"] = dict(bundle.config["profile"], seed=seed)
+    current["program"] = str(bundle.elf)
+    current["backend"] = backend
+    summary_path = output / f"shot-{shot:04d}.summary.json"
+    current["summary"] = str(summary_path)
+    current["trace"] = str(output / f"shot-{shot:04d}.trace.jsonl")
+    if bundle.adaptive:
+        current["memory_dump"] = str(output / f"shot-{shot:04d}.memory.bin")
+    return Shot(current, output / f"shot-{shot:04d}.run.json", summary_path)
+
+
+def execute_shot(simulator, shot):
+    shot.run_path.write_text(json.dumps(shot.config, indent=2) + "\n")
+    subprocess.run(
+        [str(simulator), "--config", str(shot.run_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    summary = json.loads(shot.summary_path.read_text())
+    if not summary["success"] or any(
+        register["pending"] for register in summary["measurement_registers"]
+    ):
+        raise ValueError(f"{shot.summary_path.name} has unfinished measurements")
+    return summary
+
+
+def decode_result(bundle, shot, summary):
+    if bundle.adaptive:
+        memory = Path(shot.config["memory_dump"]).read_bytes()
+        length = struct.unpack_from("<I", memory, bundle.layout["count_address"])[0]
+        if length > bundle.layout["capacity"]:
+            raise ValueError("output count exceeds buffer capacity")
+        values = struct.unpack_from(
+            f"<{length}I", memory, bundle.layout["data_address"]
+        )
+    else:
+        values = [summary["memory"][str(address)] for address in bundle.addresses]
+    if any(value not in (0, 1) for value in values):
+        raise ValueError(f"{shot.summary_path.name} produced a non-bit output")
+    return "".join(str(value) for value in values)
+
+
+def run(elf, simulator, backend, shots, output, seed=1):
+    bundle = load_bundle(elf)
+    output = Path(output).resolve()
     if shots < 1 or seed < 0 or seed + shots - 1 > 0xFFFFFFFF:
         raise ValueError("invalid shot count or seed range")
     selected = shutil.which(str(simulator))
@@ -47,44 +112,14 @@ def run(elf, simulator, backend, shots, output, seed=1):
     counts = Counter()
     summaries = []
     exit_codes = Counter()
-    for shot in range(shots):
-        current = dict(config)
-        current["profile"] = dict(config["profile"], seed=seed + shot)
-        current["program"] = str(elf)
-        current["backend"] = backend
-        summary_path = output / f"shot-{shot:04d}.summary.json"
-        current["summary"] = str(summary_path)
-        current["trace"] = str(output / f"shot-{shot:04d}.trace.jsonl")
-        if adaptive:
-            current["memory_dump"] = str(output / f"shot-{shot:04d}.memory.bin")
-        run_path = output / f"shot-{shot:04d}.run.json"
-        run_path.write_text(json.dumps(current, indent=2) + "\n")
-        subprocess.run(
-            [str(simulator), "--config", str(run_path)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        summary = json.loads(summary_path.read_text())
-        if not summary["success"] or any(
-            reg["pending"] for reg in summary["measurement_registers"]
-        ):
-            raise ValueError(f"shot {shot} has unfinished measurements")
+    for index in range(shots):
+        shot = prepare_shot(bundle, backend, output, index, seed + index)
+        summary = execute_shot(simulator, shot)
         exit_code = summary.get("exit_code", 0)
         if exit_code:
             exit_codes[str(exit_code)] += 1
-            summaries.append(summary)
-            continue
-        values = [summary["memory"][str(address)] for address in addresses]
-        if adaptive:
-            memory = Path(current["memory_dump"]).read_bytes()
-            length = struct.unpack_from("<I", memory, layout["count_address"])[0]
-            if length > layout["capacity"]:
-                raise ValueError("output count exceeds buffer capacity")
-            values = struct.unpack_from(f"<{length}I", memory, layout["data_address"])
-        if any(value not in (0, 1) for value in values):
-            raise ValueError(f"shot {shot} produced a non-bit output")
-        counts["".join(str(value) for value in values)] += 1
+        else:
+            counts[decode_result(bundle, shot, summary)] += 1
         summaries.append(summary)
     result = {
         "shots": shots,

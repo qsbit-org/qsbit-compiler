@@ -2,20 +2,47 @@
 
 ## Modules
 
-- `lib/QIR` parses and verifies LLVM IR, identifies the entry point, validates
-  the supported QIR subset, and collects operations and output records.
-- `lib/Target` reads explicit operation mappings and constructs the complete
-  simulator device profile.
-- `lib/Scheduling` assigns each operation a controller cycle.
-- `lib/CodeGen` lowers the schedule into LLVM IR, emits an RV32I object, links
-  it with LLD, and validates the resulting ELF.
-- `qsbit-run` validates the artifact bundle and launches independent shots.
+- `lib/model` defines operations, output records and static or adaptive program bodies.
+- `lib/qir` validates QIR and owns its LLVM context and module. Adaptive programs
+  retain normalized LLVM IR and a list of quantum operations in each basic block.
+- `lib/config` parses target files. `lib/target` provides typed operation mappings.
+- `lib/schedule` computes static time points and adaptive block schedules without
+  an LLVM dependency. A schedule includes operation waits, reset corrections and
+  the wait at each block exit.
+- `lib/lowering` consumes those schedules and emits controller instructions,
+  measurement reads, output stores and decoder MMIO accesses.
+- `lib/backend` emits RV32I objects from lowered LLVM modules.
+- `lib/artifact` links and verifies ELF files, serializes profiles and publishes
+  artifact bundles.
+- `qsbit-run` validates a bundle, prepares and executes each shot, decodes its
+  output and aggregates accepted results.
 
-The normalized program and schedule are C++ structures in
-`include/qsbit/Compiler.hpp`. They are internal APIs, not a stable external IR.
-Adding an input framework should produce accepted QIR or introduce a separate
-frontend. Target mappings describe physical execution independently of the
-frontend's Python classes.
+Each implementation stage has a CMake target. LLVM is a private dependency of
+the frontend, configuration parser, lowering, RISC-V backend and artifact writer.
+The model, target lookup and scheduler do not include LLVM headers.
+
+These headers are internal and live beside their implementations. The installed
+C++ application is `qsbitc`.
+
+### Controller contract package
+
+Both projects use `qsbit::contracts` from qsbit-sim's `contracts` directory.
+It defines controller instruction encodings, decoder MMIO offsets and core
+operation names. CMake uses an installed `QsbitContracts` package or retrieves
+the revision pinned in `CMakeLists.txt`.
+
+To use a local simulator checkout without downloading the package, configure
+with `-DFETCHCONTENT_SOURCE_DIR_QSBIT_CONTRACTS=/absolute/path/to/qsbit-sim`.
+The package builds independently with
+`cmake -S contracts -B build-contracts` from the simulator checkout and installs
+with standard CMake commands.
+
+### Stage tests
+
+`unit.scheduler` checks static cycles, missing mappings, queue limits,
+adaptive resource conflicts and reset waits directly, without LLVM or a simulator.
+The compiler tests retain frontend diagnostics and artifact checks. Cross-project
+tests execute the generated programs and compare their timing and quantum results.
 
 ## Base Profile input
 

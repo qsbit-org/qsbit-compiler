@@ -1,4 +1,7 @@
-#include "qsbit/Compiler.hpp"
+#include "artifact/ArtifactWriter.hpp"
+#include "config/TargetReader.hpp"
+#include "qir/QirReader.hpp"
+#include "schedule/ScheduledProgram.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -36,7 +39,7 @@ int main(int argc, char **argv) {
       throw std::runtime_error("input and output must differ");
     auto program = qsbit::readQIR(input);
     auto device = qsbit::readTarget(target);
-    auto plan = qsbit::schedule(program, device);
+    auto plan = qsbit::schedule(program, device.model);
     qsbit::emitExecutable(program, device, plan, output, QSBIT_LLD);
     std::cout << "Compiled " << program.entry << " to " << output.string() << '\n';
     return 0;
