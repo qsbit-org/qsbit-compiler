@@ -1,11 +1,9 @@
 #pragma once
 #include <compare>
-#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
-#include <qsbit/contracts/executable.hpp>
 #include <qsbit/contracts/operations.hpp>
 #include <string>
 #include <variant>

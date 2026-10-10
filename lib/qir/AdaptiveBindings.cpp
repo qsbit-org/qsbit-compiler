@@ -5,6 +5,7 @@
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Casting.h>
+#include <set>
 #include <stdexcept>
 #include <vector>
 namespace qsbit {
@@ -15,18 +16,20 @@ void AdaptiveIR::validateBindings(const std::vector<BlockOperations> &view, std:
   };
   if (!code || !code->module || view.size() != blocks.size())
     invalid();
-  std::size_t count = 0;
+  std::set<BlockId> seenBlocks;
+  std::set<OperationId> seenOperations;
   for (const auto &record : view) {
     auto blockEntry = blocks.find(record.id);
     auto *block = blockEntry == blocks.end() ? nullptr
                                              : llvm::dyn_cast_or_null<llvm::BasicBlock>(
                                                    static_cast<llvm::Value *>(blockEntry->second));
-    if (!block || block->getModule() != code->module.get() ||
-        block->getParent()->size() != view.size())
+    if (!seenBlocks.insert(record.id).second || !block ||
+        block->getModule() != code->module.get() || block->getParent()->size() != view.size())
       invalid();
     const llvm::Instruction *previous = nullptr;
     for (const auto &operation : record.operations) {
-      ++count;
+      if (!seenOperations.insert(operation.id).second)
+        invalid();
       auto entry = operations.find(operation.id);
       auto *call =
           entry == operations.end()
@@ -55,7 +58,7 @@ void AdaptiveIR::validateBindings(const std::vector<BlockOperations> &view, std:
     if (actual != record.operations.size())
       invalid();
   }
-  if (count != operations.size())
+  if (seenOperations.size() != operations.size())
     invalid();
 }
 } // namespace qsbit

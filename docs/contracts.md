@@ -47,6 +47,8 @@ with standard CMake commands.
 After normalization, each basic block and quantum operation receives a `BlockId`
 or `OperationId`. The scheduler uses these IDs. The frontend retains explicit LLVM
 value bindings, and lowering resolves the scheduled operations through those bindings.
+Block and operation IDs must be unique. The scheduler rejects duplicate IDs, and
+lowering checks that the bindings cover every quantum operation exactly once.
 Changing a quantum operation's identity, operands, block or relative order requires
 rebuilding the bindings and schedule. Unrelated classical instructions may be inserted
 without renumbering operations.
@@ -73,7 +75,8 @@ simulator options, which the simulator validates when loading the configuration.
 `unit.scheduler` checks static cycles, missing mappings, queue limits,
 adaptive resource conflicts and reset waits directly, without LLVM or a simulator.
 Stage tests check module ownership after input destruction, operation bindings after
-classical instruction insertion, rejection of deleted bindings and artifact layout
+classical instruction insertion and reordered block views, rejection of changed
+quantum operations and duplicate IDs, and artifact layout
 without invoking LLD. `compiler.artifact_contract` checks the packaged schema and ABI
 definitions against the shared package, accepts generated bundles and rejects invalid
 layouts and field types. The compiler tests retain frontend diagnostics and artifact

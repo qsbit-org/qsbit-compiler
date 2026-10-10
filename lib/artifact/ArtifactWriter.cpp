@@ -81,7 +81,7 @@ ArtifactBundle prepareArtifacts(const Program &program, const TargetInput &input
     timing["events"] = std::move(events);
   }
   llvm::json::Object manifest{
-      {"schema", 1},
+      {"schema", contract::abi::Schema},
       {"compiler_version", "0.1.0"},
       {"isa", std::string(contract::abi::Isa)},
       {"abi", std::string((adaptive ? contract::abi::Adaptive : contract::abi::Static).identifier)},
@@ -110,7 +110,7 @@ ArtifactBundle prepareArtifacts(const Program &program, const TargetInput &input
     inspect.push_back(contract::abi::Static.output_data + contract::abi::WordBytes * i);
   if (adaptive)
     inspect.push_back(contract::abi::Adaptive.output_count);
-  llvm::json::Object run{{"schema", 1},
+  llvm::json::Object run{{"schema", contract::abi::Schema},
                          {"program", absolute.filename().string()},
                          {"profile", std::move(profile)},
                          {"backend", "mock"},

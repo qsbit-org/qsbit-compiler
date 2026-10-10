@@ -1,16 +1,20 @@
-#include "schedule/BlockScheduler.hpp"
+#include "model/Program.hpp"
+#include "schedule/ScheduledProgram.hpp"
+#include "target/TargetModel.hpp"
+#include <exception>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 void check(bool value) {
   if (!value)
     throw std::runtime_error("scheduler assertion failed");
 }
-template <typename F> void rejects(F operation) {
+template <typename Error = std::runtime_error, typename F> void rejects(F operation) {
   try {
     operation();
-  } catch (const std::runtime_error &) {
+  } catch (const Error &) {
     return;
   }
   throw std::runtime_error("expected rejection");
@@ -57,6 +61,12 @@ int main() {
     auto limited = scheduleAdaptive(blocks, target);
     check(limited.blocks.at(BlockId{7}).calls.at(OperationId{20}).timing.before == 1);
     check(limited.blocks.at(BlockId{7}).calls.at(OperationId{30}).timing.before == 3);
+    auto duplicate = blocks;
+    duplicate.front().operations.back().id = duplicate.front().operations.front().id;
+    rejects<std::logic_error>([&] { (void)scheduleAdaptive(duplicate, target); });
+    duplicate = blocks;
+    duplicate.push_back({duplicate.front().id, {}});
+    rejects<std::logic_error>([&] { (void)scheduleAdaptive(duplicate, target); });
     std::cout << "PASS scheduler\n";
     return 0;
   } catch (const std::exception &error) {

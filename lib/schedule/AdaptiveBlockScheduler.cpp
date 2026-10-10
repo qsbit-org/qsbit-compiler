@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <set>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 namespace qsbit {
@@ -36,10 +38,13 @@ std::uint32_t BlockSchedule::finish() const { return std::max(used_, target_.blo
 AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &blocks,
                                   const Target &target) {
   AdaptiveSchedule result;
+  std::set<OperationId> operationIds;
   for (const auto &operations : blocks) {
     BlockSchedule scheduler(target);
     ScheduledBlock block;
     for (const auto &request : operations.operations) {
+      if (!operationIds.insert(request.id).second)
+        throw std::logic_error("schedule: duplicate operation ID");
       const auto &op = request.operation;
       const auto &m =
           mapping(target, op.name == QuantumOp::Reset ? QuantumOp::MeasureZ : op.name, op.qubits);
@@ -54,7 +59,8 @@ AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &blocks,
       block.calls.emplace(request.id, std::move(call));
     }
     block.finish = scheduler.finish();
-    result.blocks.emplace(operations.id, std::move(block));
+    if (!result.blocks.emplace(operations.id, std::move(block)).second)
+      throw std::logic_error("schedule: duplicate block ID");
   }
   return result;
 }

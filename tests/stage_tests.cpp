@@ -1,12 +1,29 @@
 #include "artifact/ArtifactWriter.hpp"
+#include "config/TargetReader.hpp"
+#include "llvm_ir/OwnedModule.hpp"
 #include "lowering/ControllerLowering.hpp"
+#include "model/Program.hpp"
 #include "qir/AdaptiveIR.hpp"
 #include "qir/QirReader.hpp"
+#include "schedule/ScheduledProgram.hpp"
+#include "target/TargetModel.hpp"
+#include <algorithm>
+#include <exception>
+#include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Support/Casting.h>
+#include <llvm/Support/raw_ostream.h>
+#include <memory>
+#include <qsbit/contracts/executable.hpp>
 #include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace {
 void check(bool value) {
@@ -23,7 +40,9 @@ std::unique_ptr<qsbit::OwnedModule> lower(const std::filesystem::path &source, b
   auto program = qsbit::readQIR(source);
   auto plan = qsbit::schedule(program, target());
   if (insert) {
-    auto &ir = *std::get<qsbit::AdaptiveProgram>(program.body).ir;
+    auto &body = std::get<qsbit::AdaptiveProgram>(program.body);
+    std::reverse(body.blocks.begin(), body.blocks.end());
+    auto &ir = *body.ir;
     auto *call =
         llvm::cast<llvm::Instruction>(static_cast<llvm::Value *>(ir.operations.begin()->second));
     auto *constant = llvm::ConstantInt::get(llvm::Type::getInt32Ty(*ir.code->context), 1);
@@ -42,18 +61,45 @@ int main(int argc, char **argv) {
       check(result->module && &result->module->getContext() == result->context.get());
       check(!llvm::verifyModule(*result->module, &llvm::errs()));
       if (mode == "association") {
-        auto program = qsbit::readQIR(source);
-        auto plan = qsbit::schedule(program, target());
-        auto &ir = *std::get<qsbit::AdaptiveProgram>(program.body).ir;
-        llvm::cast<llvm::Instruction>(static_cast<llvm::Value *>(ir.operations.begin()->second))
-            ->eraseFromParent();
-        bool rejected = false;
-        try {
-          (void)qsbit::lowerProgram(std::move(program), target(), plan);
-        } catch (const std::logic_error &) {
-          rejected = true;
+        for (const std::string_view mutation :
+             {"delete", "insert", "move", "operand", "duplicate"}) {
+          auto program = qsbit::readQIR(source);
+          auto plan = qsbit::schedule(program, target());
+          auto &body = std::get<qsbit::AdaptiveProgram>(program.body);
+          auto &ir = *body.ir;
+          auto *call =
+              llvm::cast<llvm::CallInst>(static_cast<llvm::Value *>(ir.operations.begin()->second));
+          if (mutation == "delete") {
+            call->eraseFromParent();
+          } else if (mutation == "insert") {
+            call->clone()->insertBefore(call->getIterator());
+          } else if (mutation == "move") {
+            auto *other = llvm::cast<llvm::Instruction>(
+                static_cast<llvm::Value *>(std::next(ir.operations.begin())->second));
+            call->moveBefore(other->getIterator());
+          } else if (mutation == "operand") {
+            program.qubits = 2;
+            call->setArgOperand(
+                0, llvm::ConstantExpr::getIntToPtr(
+                       llvm::ConstantInt::get(llvm::Type::getInt64Ty(*ir.code->context), 1),
+                       call->getArgOperand(0)->getType()));
+          } else {
+            auto first = std::find_if(body.blocks.begin(), body.blocks.end(),
+                                      [](const auto &b) { return b.operations.empty(); });
+            check(first != body.blocks.end());
+            auto second = std::find_if(std::next(first), body.blocks.end(),
+                                       [](const auto &b) { return b.operations.empty(); });
+            check(second != body.blocks.end());
+            second->id = first->id;
+          }
+          bool rejected = false;
+          try {
+            (void)qsbit::lowerProgram(std::move(program), target(), plan);
+          } catch (const std::logic_error &) {
+            rejected = true;
+          }
+          check(rejected);
         }
-        check(rejected);
       }
     } else if (mode == "artifact") {
       qsbit::Program program;
