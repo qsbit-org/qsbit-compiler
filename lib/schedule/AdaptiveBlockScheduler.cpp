@@ -1,5 +1,12 @@
+#include "model/Program.hpp"
 #include "schedule/BlockScheduler.hpp"
+#include "schedule/ScheduledProgram.hpp"
+#include "target/TargetModel.hpp"
 #include <algorithm>
+#include <cstdint>
+#include <optional>
+#include <utility>
+#include <vector>
 namespace qsbit {
 OperationTiming BlockSchedule::reserve(const Mapping &mapping, bool measurement) {
   OperationTiming timing;
@@ -15,9 +22,7 @@ OperationTiming BlockSchedule::reserve(const Mapping &mapping, bool measurement)
   ports_.insert(mapping.port);
   ++commands_;
   qubits_.insert(mapping.qubits.begin(), mapping.qubits.end());
-  used_ = std::max(
-      used_, static_cast<std::uint32_t>((std::uint64_t(mapping.duration) + target_.tcuPeriod - 1) /
-                                        target_.tcuPeriod));
+  used_ = std::max(used_, durationCycles(mapping.duration, target_.tcuPeriod));
   if (measurement) {
     timing.after = std::max(used_, target_.blockCycles);
     used_ = 0;
@@ -34,7 +39,7 @@ AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &blocks,
   for (const auto &operations : blocks) {
     BlockSchedule scheduler(target);
     ScheduledBlock block;
-    for (const auto &request : operations) {
+    for (const auto &request : operations.operations) {
       const auto &op = request.operation;
       const auto &m =
           mapping(target, op.name == QuantumOp::Reset ? QuantumOp::MeasureZ : op.name, op.qubits);
@@ -43,13 +48,13 @@ AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &blocks,
           std::nullopt, 0};
       if (op.name == QuantumOp::Reset) {
         call.reset = mapping(target, QuantumOp::X, op.qubits);
-        call.resetWait = std::max(target.blockCycles,
-                                  (call.reset->duration + target.tcuPeriod - 1) / target.tcuPeriod);
+        call.resetWait =
+            std::max(target.blockCycles, durationCycles(call.reset->duration, target.tcuPeriod));
       }
-      block.calls.emplace(request.instruction, std::move(call));
+      block.calls.emplace(request.id, std::move(call));
     }
     block.finish = scheduler.finish();
-    result.blocks.push_back(std::move(block));
+    result.blocks.emplace(operations.id, std::move(block));
   }
   return result;
 }

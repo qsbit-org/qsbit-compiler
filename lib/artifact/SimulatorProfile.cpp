@@ -1,4 +1,9 @@
 #include "artifact/ArtifactWriter.hpp"
+#include "model/Program.hpp"
+#include "target/TargetModel.hpp"
+#include <llvm/Support/JSON.h>
+#include <string>
+#include <utility>
 namespace qsbit {
 llvm::json::Object simulatorProfile(const Target &target, bool adaptive) {
   llvm::json::Array profileMappings;

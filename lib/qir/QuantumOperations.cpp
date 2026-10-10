@@ -1,4 +1,7 @@
+#include "model/Program.hpp"
 #include "qir/AdaptiveIR.hpp"
+#include <llvm/ADT/StringRef.h>
+#include <optional>
 namespace qsbit {
 std::optional<QuantumOp> quantumOperation(llvm::StringRef name) {
   if (name == "__quantum__qis__h__body")

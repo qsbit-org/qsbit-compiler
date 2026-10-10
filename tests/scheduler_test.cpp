@@ -41,21 +41,22 @@ int main() {
     target.timingCapacity = 1;
     rejects([&] { (void)schedule(program, target); });
 
-    std::vector<BlockOperations> blocks{{{0, {QuantumOp::H, {0}, {}}},
-                                         {2, {QuantumOp::X, {1}, {}}},
-                                         {3, {QuantumOp::Reset, {0}, {}}}}};
+    std::vector<BlockOperations> blocks{{BlockId{7},
+                                         {{OperationId{10}, {QuantumOp::H, {0}, {}}},
+                                          {OperationId{20}, {QuantumOp::X, {1}, {}}},
+                                          {OperationId{30}, {QuantumOp::Reset, {0}, {}}}}}};
     auto adaptive = scheduleAdaptive(blocks, target);
-    const auto &block = adaptive.blocks.at(0);
-    check(block.calls.at(0).timing.before == 0);
-    check(block.calls.at(2).timing.before == 0);
-    check(block.calls.at(3).timing.before == 3);
-    check(block.calls.at(3).timing.after == 10);
-    check(block.calls.at(3).reset->operation == QuantumOp::X);
-    check(block.calls.at(3).resetWait == 10 && block.finish == 10);
+    const auto &block = adaptive.blocks.at(BlockId{7});
+    check(block.calls.at(OperationId{10}).timing.before == 0);
+    check(block.calls.at(OperationId{20}).timing.before == 0);
+    check(block.calls.at(OperationId{30}).timing.before == 3);
+    check(block.calls.at(OperationId{30}).timing.after == 10);
+    check(block.calls.at(OperationId{30}).reset->operation == QuantumOp::X);
+    check(block.calls.at(OperationId{30}).resetWait == 10 && block.finish == 10);
     target.stagingCapacity = 1;
     auto limited = scheduleAdaptive(blocks, target);
-    check(limited.blocks.at(0).calls.at(2).timing.before == 1);
-    check(limited.blocks.at(0).calls.at(3).timing.before == 3);
+    check(limited.blocks.at(BlockId{7}).calls.at(OperationId{20}).timing.before == 1);
+    check(limited.blocks.at(BlockId{7}).calls.at(OperationId{30}).timing.before == 3);
     std::cout << "PASS scheduler\n";
     return 0;
   } catch (const std::exception &error) {

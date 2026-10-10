@@ -20,13 +20,14 @@ struct ScheduledCall {
   std::uint32_t resetWait = 0;
 };
 struct ScheduledBlock {
-  std::map<std::size_t, ScheduledCall> calls;
+  std::map<OperationId, ScheduledCall> calls;
   std::uint32_t finish = 0;
 };
 struct AdaptiveSchedule {
-  std::vector<ScheduledBlock> blocks;
+  std::map<BlockId, ScheduledBlock> blocks;
 };
 using Schedule = std::variant<StaticSchedule, AdaptiveSchedule>;
+StaticSchedule scheduleStatic(const StaticProgram &, const Target &);
 Schedule schedule(const Program &, const Target &);
 AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &, const Target &);
 } // namespace qsbit

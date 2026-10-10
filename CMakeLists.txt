@@ -15,12 +15,12 @@ if(NOT LLD_VERSION MATCHES "LLD 21\\.")
   message(FATAL_ERROR "qsbit-compiler requires LLD 21: ${QSBIT_LLD}")
 endif()
 separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND "${LLVM_DEFINITIONS}")
-find_package(QsbitContracts 0.1.0 EXACT CONFIG QUIET)
+find_package(QsbitContracts 0.2.0 EXACT CONFIG QUIET)
 if(NOT QsbitContracts_FOUND)
   include(FetchContent)
   FetchContent_Declare(qsbit_contracts
     GIT_REPOSITORY https://github.com/qsbit-org/qsbit-sim.git
-    GIT_TAG 6d87f015349893ea39f3f073e497ae7b00de597c
+    GIT_TAG 67f9996a1703ce21be0ee74cc5c71921bb217e02
     SOURCE_SUBDIR contracts)
   FetchContent_MakeAvailable(qsbit_contracts)
 endif()
@@ -39,28 +39,35 @@ function(qsbit_llvm target)
 endfunction()
 
 qsbit_stage(qsbit_target lib/target/TargetLookup.cpp)
-qsbit_stage(qsbit_scheduler lib/schedule/StaticScheduler.cpp lib/schedule/AdaptiveBlockScheduler.cpp)
+qsbit_stage(qsbit_scheduler lib/schedule/Schedule.cpp lib/schedule/StaticScheduler.cpp lib/schedule/AdaptiveBlockScheduler.cpp)
 target_link_libraries(qsbit_scheduler PRIVATE qsbit_target)
-qsbit_stage(qsbit_qir_frontend lib/qir/BaseQirReader.cpp lib/qir/AdaptiveQirReader.cpp lib/qir/QuantumOperations.cpp)
+qsbit_stage(qsbit_qir_frontend lib/qir/BaseQirReader.cpp lib/qir/AdaptiveQirReader.cpp lib/qir/QuantumOperations.cpp lib/qir/AdaptiveBindings.cpp lib/qir/AdaptiveValidation.cpp)
 qsbit_llvm(qsbit_qir_frontend)
 qsbit_stage(qsbit_target_config lib/config/TargetReader.cpp)
 qsbit_llvm(qsbit_target_config)
 qsbit_stage(qsbit_controller_lowering lib/lowering/StaticControllerLowering.cpp
-  lib/lowering/AdaptiveControllerLowering.cpp lib/lowering/DecoderAbiLowering.cpp)
+  lib/lowering/AdaptiveControllerLowering.cpp lib/lowering/DecoderAbiLowering.cpp
+  lib/lowering/ProgramLowering.cpp)
 target_link_libraries(qsbit_controller_lowering PRIVATE qsbit_qir_frontend)
 qsbit_llvm(qsbit_controller_lowering)
 qsbit_stage(qsbit_riscv_backend lib/backend/RiscvBackend.cpp)
 qsbit_llvm(qsbit_riscv_backend)
 qsbit_stage(qsbit_artifact lib/artifact/ArtifactWriter.cpp lib/artifact/SimulatorProfile.cpp
   lib/artifact/ElfVerifier.cpp)
-target_link_libraries(qsbit_artifact PRIVATE qsbit_controller_lowering qsbit_riscv_backend)
 qsbit_llvm(qsbit_artifact)
+qsbit_stage(qsbit_driver lib/driver/Compile.cpp)
+target_link_libraries(qsbit_driver PRIVATE qsbit_qir_frontend qsbit_target_config qsbit_scheduler
+  qsbit_controller_lowering qsbit_riscv_backend qsbit_artifact)
+qsbit_llvm(qsbit_driver)
 add_executable(qsbitc tools/qsbitc/main.cpp)
-target_link_libraries(qsbitc PRIVATE qsbit_qir_frontend qsbit_target_config qsbit_scheduler qsbit_artifact)
-qsbit_llvm(qsbitc)
+target_link_libraries(qsbitc PRIVATE qsbit_driver)
 target_compile_options(qsbitc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 set_target_properties(qsbitc PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 target_compile_definitions(qsbitc PRIVATE QSBIT_LLD="${QSBIT_LLD}")
+add_custom_target(update_python_contracts
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${QsbitContracts_DATA_DIR}/executable.json" "${QsbitContracts_DATA_DIR}/artifact.schema.json"
+    "${PROJECT_SOURCE_DIR}/python/qsbit_compiler")
 include(CTest)
 if(BUILD_TESTING)
   add_executable(scheduler_test tests/scheduler_test.cpp)
@@ -68,7 +75,22 @@ if(BUILD_TESTING)
   target_compile_options(scheduler_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
   add_test(NAME unit.scheduler COMMAND scheduler_test)
   set_tests_properties(unit.scheduler PROPERTIES TIMEOUT 15)
+  add_executable(stage_tests tests/stage_tests.cpp)
+  target_link_libraries(stage_tests PRIVATE qsbit_qir_frontend qsbit_controller_lowering qsbit_scheduler qsbit_artifact)
+  qsbit_llvm(stage_tests)
+  target_compile_options(stage_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  foreach(case owner association artifact)
+    add_test(NAME unit.${case} COMMAND stage_tests ${case} "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(unit.${case} PROPERTIES TIMEOUT 15)
+  endforeach()
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME compiler.artifact_contract COMMAND "${Python3_EXECUTABLE}"
+    "${PROJECT_SOURCE_DIR}/tests/artifact_contract_test.py" "$<TARGET_FILE:qsbitc>"
+    "${PROJECT_SOURCE_DIR}" "${QsbitContracts_DATA_DIR}")
+  set_tests_properties(compiler.artifact_contract PROPERTIES TIMEOUT 30)
+  add_test(NAME architecture.includes COMMAND "${Python3_EXECUTABLE}" "${QsbitContracts_TOOLS_DIR}/check_dependencies.py" "${PROJECT_SOURCE_DIR}")
+  add_test(NAME architecture.headers COMMAND "${Python3_EXECUTABLE}" "${QsbitContracts_TOOLS_DIR}/check_dependencies.py" "${PROJECT_SOURCE_DIR}" --headers "${PROJECT_BINARY_DIR}/compile_commands.json")
+  set_tests_properties(architecture.includes architecture.headers PROPERTIES TIMEOUT 180)
   add_test(NAME compiler.install COMMAND "${Python3_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/tests/install_test.py" "${PROJECT_BINARY_DIR}"
     "${PROJECT_SOURCE_DIR}" "${CMAKE_INSTALL_BINDIR}" "${CMAKE_INSTALL_DATADIR}")

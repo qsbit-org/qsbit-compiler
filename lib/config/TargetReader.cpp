@@ -1,7 +1,19 @@
 #include "config/TargetReader.hpp"
+#include "target/TargetModel.hpp"
+#include <cstdint>
+#include <filesystem>
+#include <initializer_list>
+#include <llvm/ADT/StringRef.h>
+#include <llvm/Support/Error.h>
+#include <llvm/Support/JSON.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <qsbit/contracts/executable.hpp>
+#include <qsbit/contracts/operations.hpp>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace qsbit {
 namespace {
@@ -53,7 +65,7 @@ TargetInput readTarget(const std::filesystem::path &path) {
     input.decoding = llvm::json::Object(*decoding);
     target.hasDecoder = true;
     target.decoderBase = integer(*decoding, "mmio_base", 0, 0xffffffe0);
-    if (target.decoderBase % 4 || target.decoderBase < 0x100000)
+    if (target.decoderBase % 4 || target.decoderBase < contract::abi::Adaptive.memory_size)
       fail("decoder MMIO must be aligned and outside program RAM");
   } else if (object->get("decoding"))
     fail("decoding must be an object");

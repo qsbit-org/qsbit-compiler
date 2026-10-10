@@ -14,7 +14,7 @@ On Ubuntu 26.04:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential cmake ninja-build python3 git \
+sudo apt-get install -y build-essential cmake ninja-build python3 python3-jsonschema git \
   clang-21 llvm-21-dev llvm-21-tools lld-21 clang-format-21 clang-tidy-21
 cmake --preset clang-ninja
 cmake --build --preset clang-ninja --parallel 4
@@ -76,11 +76,22 @@ The compiler also writes `bell.lowered.ll`, `bell.schedule.json`,
 The runner checks the ELF digest, result layout, and target profile before
 launching the simulator.
 
+## Architecture
+
+The QIR frontend validates input and normalizes adaptive control flow. The scheduler
+computes timing from typed operations without depending on LLVM. Lowering consumes
+the schedule and produces an owned LLVM module for RISC-V code generation.
+
+The compilation driver coordinates lowering, linking, ELF verification and artifact
+publication. Shared contracts define instruction encodings, decoder registers and
+executable layouts. See [compiler modules](docs/contracts.md#modules) for dependency
+rules, ownership and stage tests.
+
 ## Integration tests
 
 ```sh
 cmake --preset clang-ninja \
-  -DQSBIT_SIM_EXECUTABLE="$(realpath ../qsbit-sim/build-clang/qsbit-sim)" \
+  -DQSBIT_SIM_EXECUTABLE="$(command -v qsbit-sim)" \
   -DQSBIT_TEST_AER=ON
 cmake --build --preset clang-ninja --parallel 4
 ctest --preset clang-ninja

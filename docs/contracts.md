@@ -12,14 +12,18 @@
 - `lib/lowering` consumes those schedules and emits controller instructions,
   measurement reads, output stores and decoder MMIO accesses.
 - `lib/backend` emits RV32I objects from lowered LLVM modules.
-- `lib/artifact` links and verifies ELF files, serializes profiles and publishes
-  artifact bundles.
+- `lib/artifact` verifies ELF files, serializes profiles and publishes artifact bundles.
+- `lib/driver` coordinates reading, scheduling, lowering, object emission, linking
+  and publication.
 - `qsbit-run` validates a bundle, prepares and executes each shot, decodes its
   output and aggregates accepted results.
 
 Each implementation stage has a CMake target. LLVM is a private dependency of
-the frontend, configuration parser, lowering, RISC-V backend and artifact writer.
+the frontend, configuration parser, lowering, RISC-V backend, artifact writer and driver.
 The model, target lookup and scheduler do not include LLVM headers.
+`architecture.json` declares permitted direct includes. `architecture.includes`
+rejects undeclared dependencies, and `architecture.headers` compiles each internal
+header independently.
 
 These headers are internal and live beside their implementations. The installed
 C++ application is `qsbitc`.
@@ -28,7 +32,8 @@ C++ application is `qsbitc`.
 
 Both projects use `qsbit::contracts` from qsbit-sim's `contracts` directory.
 It defines controller instruction encodings, decoder MMIO offsets and core
-operation names. CMake uses an installed `QsbitContracts` package or retrieves
+operation names, executable layouts and the artifact JSON schema. CMake uses an
+installed `QsbitContracts` package or retrieves
 the revision pinned in `CMakeLists.txt`.
 
 To use a local simulator checkout without downloading the package, configure
@@ -37,12 +42,43 @@ The package builds independently with
 `cmake -S contracts -B build-contracts` from the simulator checkout and installs
 with standard CMake commands.
 
+### Adaptive ownership and operation identity
+
+After normalization, each basic block and quantum operation receives a `BlockId`
+or `OperationId`. The scheduler uses these IDs. The frontend retains explicit LLVM
+value bindings, and lowering resolves the scheduled operations through those bindings.
+Changing a quantum operation's identity, operands, block or relative order requires
+rebuilding the bindings and schedule. Unrelated classical instructions may be inserted
+without renumbering operations.
+
+`lowerProgram` consumes its input and returns an `OwnedModule`. This owner destroys
+the LLVM module before its context. The returned module does not depend on the
+input program's lifetime.
+
+### Artifact contract
+
+`contracts/schema/executable.json` in qsbit-sim defines ABI identifiers, word size,
+memory bounds, stack addresses and output layouts. CMake generates the C++ layout
+constants; the Python package carries the same JSON definitions.
+`update_python_contracts` refreshes the packaged definitions and schema from the
+selected contract package.
+
+`artifact.schema.json` describes compiler-produced manifests, full profiles and run
+files. The runner validates their structure, ABI layout, digest and agreement before
+execution. The run schema validates compiler-required fields and permits additional
+simulator options, which the simulator validates when loading the configuration.
+
 ### Stage tests
 
 `unit.scheduler` checks static cycles, missing mappings, queue limits,
 adaptive resource conflicts and reset waits directly, without LLVM or a simulator.
-The compiler tests retain frontend diagnostics and artifact checks. Cross-project
-tests execute the generated programs and compare their timing and quantum results.
+Stage tests check module ownership after input destruction, operation bindings after
+classical instruction insertion, rejection of deleted bindings and artifact layout
+without invoking LLD. `compiler.artifact_contract` checks the packaged schema and ABI
+definitions against the shared package, accepts generated bundles and rejects invalid
+layouts and field types. The compiler tests retain frontend diagnostics and artifact
+checks. Cross-project tests execute the generated programs and compare their timing
+and quantum results.
 
 ## Base Profile input
 

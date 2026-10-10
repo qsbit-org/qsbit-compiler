@@ -1,19 +1,33 @@
+#include "model/Program.hpp"
 #include "qir/AdaptiveIR.hpp"
+#include "qir/AdaptiveValidation.hpp"
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <llvm/IR/CFG.h>
+#include <llvm/IR/CallingConv.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/Support/Casting.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace qsbit {
 namespace {
 [[noreturn]] void fail(const std::string &s) { throw std::runtime_error("adaptive QIR: " + s); }
 } // namespace
 std::uint32_t resourceIndex(llvm::Value *value, std::uint32_t limit) {
+  if (!value->getType()->isPointerTy())
+    fail("qubit and result operands must be pointers");
   std::uint64_t index = 0;
   if (!llvm::isa<llvm::ConstantPointerNull>(value)) {
     auto *expr = llvm::dyn_cast<llvm::ConstantExpr>(value);
@@ -34,7 +48,7 @@ bool readResult(llvm::StringRef name) {
 }
 } // namespace
 Program readAdaptive(std::unique_ptr<AdaptiveIR> owned) {
-  auto *module = owned->module.get();
+  auto *module = owned->code->module.get();
   Program program;
   program.body.emplace<AdaptiveProgram>().ir = {owned.release(), [](AdaptiveIR *ir) { delete ir; }};
   llvm::Function *entry = nullptr;
@@ -91,8 +105,11 @@ Program readAdaptive(std::unique_ptr<AdaptiveIR> owned) {
 
 void prepareAdaptive(Program &program) {
   auto &body = std::get<AdaptiveProgram>(program.body);
-  auto &module = body.ir->module;
+  auto &module = body.ir->code->module;
   auto *entry = module->getFunction(program.entry);
+  for (const auto *name : {"__qsbit_measurement_results", "__qsbit_output_count"})
+    if (module->getNamedValue(name))
+      fail("reserved global name: " + std::string(name));
   for (auto &global : module->globals())
     if (!global.isConstant())
       fail("mutable input globals are unsupported");
@@ -134,6 +151,10 @@ void prepareAdaptive(Program &program) {
     fn->dropAllReferences();
   for (auto *fn : unused)
     fn->eraseFromParent();
+  for (const auto &block : *entry)
+    for (const auto &instruction : block)
+      if (const auto *call = llvm::dyn_cast<llvm::CallInst>(&instruction))
+        validateAdaptiveCall(*call, program.qubits, program.results);
   // Every result read must be preceded by a measurement on every incoming path.
   std::set<std::uint32_t> all;
   for (std::uint32_t r = 0; r < program.results; ++r)
@@ -187,12 +208,22 @@ void prepareAdaptive(Program &program) {
             fail("read of an unmeasured result");
       }
   }
+  body.blocks.clear();
+  body.ir->blocks.clear();
+  body.ir->operations.clear();
+  std::uint32_t nextBlock = 0, nextOperation = 0;
   for (auto &block : *entry) {
-    BlockOperations operations;
-    std::size_t index = 0;
+    const BlockId blockId{nextBlock++};
+    BlockOperations operations{blockId, {}};
+    body.ir->blocks.emplace(blockId, &block);
     for (auto &instruction : block) {
       auto *call = llvm::dyn_cast<llvm::CallInst>(&instruction);
       if (!call) {
+        if (const auto *returned = llvm::dyn_cast<llvm::ReturnInst>(&instruction))
+          if (const auto *constant =
+                  llvm::dyn_cast_or_null<llvm::ConstantInt>(returned->getReturnValue()))
+            if (constant->getValue().ugt(63))
+              fail("entry exit status must be in the range 0-63");
         auto *type = instruction.getType();
         if (!type->isVoidTy() && (!type->isIntegerTy() || type->getIntegerBitWidth() > 64))
           fail("unsupported classical value type");
@@ -206,27 +237,25 @@ void prepareAdaptive(Program &program) {
             opcode != llvm::Instruction::Xor && opcode != llvm::Instruction::Shl &&
             opcode != llvm::Instruction::LShr && opcode != llvm::Instruction::AShr)
           fail("unsupported classical instruction: " + std::string(instruction.getOpcodeName()));
-        ++index;
         continue;
       }
 
       if (call) {
         auto operation = quantumOperation(call->getCalledFunction()->getName());
         if (operation.has_value()) {
-          const unsigned arity =
-              operation == QuantumOp::Cx || operation == QuantumOp::MeasureZ ? 2 : 1;
-          if (call->arg_size() != arity || !call->getType()->isVoidTy())
-            fail("invalid quantum call signature");
           std::vector<std::uint32_t> qubits{resourceIndex(call->getArgOperand(0), program.qubits)};
           if (operation == QuantumOp::Cx) {
             qubits.push_back(resourceIndex(call->getArgOperand(1), program.qubits));
-            if (qubits[0] == qubits[1])
-              fail("CX requires distinct qubits");
           }
-          operations.push_back({index, {*operation, std::move(qubits), std::nullopt}});
+          const OperationId operationId{nextOperation++};
+          const auto result =
+              operation == QuantumOp::MeasureZ
+                  ? std::optional{resourceIndex(call->getArgOperand(1), program.results)}
+                  : std::nullopt;
+          operations.operations.push_back({operationId, {*operation, std::move(qubits), result}});
+          body.ir->operations.emplace(operationId, call);
         }
       }
-      ++index;
     }
     body.blocks.push_back(std::move(operations));
   }

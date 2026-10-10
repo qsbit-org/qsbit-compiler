@@ -1,9 +1,9 @@
-#include "artifact/ArtifactWriter.hpp"
-#include "config/TargetReader.hpp"
-#include "qir/QirReader.hpp"
-#include "schedule/ScheduledProgram.hpp"
+#include "driver/Compile.hpp"
+#include <exception>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 int main(int argc, char **argv) {
   try {
@@ -37,11 +37,8 @@ int main(int argc, char **argv) {
     if (std::filesystem::absolute(input).lexically_normal() ==
         std::filesystem::absolute(output).lexically_normal())
       throw std::runtime_error("input and output must differ");
-    auto program = qsbit::readQIR(input);
-    auto device = qsbit::readTarget(target);
-    auto plan = qsbit::schedule(program, device.model);
-    qsbit::emitExecutable(program, device, plan, output, QSBIT_LLD);
-    std::cout << "Compiled " << program.entry << " to " << output.string() << '\n';
+    const auto entry = qsbit::compileProgram(input, target, output, QSBIT_LLD);
+    std::cout << "Compiled " << entry << " to " << output.string() << '\n';
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "qsbitc: " << error.what() << '\n';

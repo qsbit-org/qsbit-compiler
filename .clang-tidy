@@ -1,5 +1,5 @@
 # LLVM 21 stores User operands before the object allocation. ArrayBound models
 # CallBase::getCalledFunction() as a negative-offset access in llvm/IR/User.h.
 # Keep the other default analyzer checks enabled.
-Checks: '-clang-analyzer-security.ArrayBound'
+Checks: 'misc-include-cleaner,-clang-analyzer-security.ArrayBound'
 WarningsAsErrors: '*'

@@ -1,9 +1,16 @@
 #include "artifact/ElfVerifier.hpp"
-#include "model/Program.hpp"
+#include "target/TargetModel.hpp"
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Object/ObjectFile.h>
+#include <llvm/Support/Error.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <qsbit/contracts/executable.hpp>
 #include <qsbit/contracts/isa.hpp>
 #include <stdexcept>
+#include <string>
 namespace qsbit {
 std::uint32_t word(llvm::StringRef bytes, std::size_t offset) {
   if (offset + 4 > bytes.size())
@@ -32,7 +39,9 @@ void validateELF(const std::filesystem::path &path, const Target &target, bool a
     auto content = section.getContents();
     if (!content)
       throw std::runtime_error(llvm::toString(content.takeError()));
-    if (content->size() % 4 != 0 || content->size() >= (adaptive ? 0x10000 : OutputAddress))
+    if (content->size() % 4 != 0 ||
+        content->size() >=
+            (adaptive ? contract::abi::Adaptive.output_count : contract::abi::Static.output_data))
       throw std::runtime_error("text must contain aligned RV32 instructions below output RAM");
     // Count preload instructions before the first FMR or exit call.
     std::uint32_t preload = 0;

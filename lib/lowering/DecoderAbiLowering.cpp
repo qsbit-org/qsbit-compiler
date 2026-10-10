@@ -1,8 +1,14 @@
 #include "lowering/DecoderAbiLowering.hpp"
 #include "lowering/InstructionBuilder.hpp"
+#include "target/TargetModel.hpp"
+#include <cstdint>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
 #include <qsbit/contracts/decoder.hpp>
 #include <stdexcept>
+#include <string>
 namespace qsbit {
 using lowering::assembly;
 namespace registers = contract::decoder;
@@ -31,15 +37,6 @@ void lowerDecoderABI(llvm::Module &module, const Target &target) {
     const bool readyQuery = llvm::StringRef(name) == "decoder_ready_ui64";
     const bool enqueue = llvm::StringRef(name).starts_with("enqueue");
     const bool reset = llvm::StringRef(name).starts_with("reset");
-    const unsigned arity = enqueue ? 4 : (reset || readyQuery) ? 1 : 3;
-    if (fn->arg_size() != arity || fn->isVarArg() ||
-        (readyQuery ? !fn->getReturnType()->isIntegerTy(1)
-                    : (enqueue || reset ? !fn->getReturnType()->isVoidTy()
-                                        : !fn->getReturnType()->isIntegerTy(64))))
-      fail("invalid decoder function signature");
-    for (auto &arg : fn->args())
-      if (!arg.getType()->isIntegerTy(64))
-        fail("decoder arguments must be i64");
     fn->setAttributes(llvm::AttributeList{});
     auto &c = module.getContext();
     llvm::IRBuilder<> b(llvm::BasicBlock::Create(c, "entry", fn));

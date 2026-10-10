@@ -1,0 +1,545 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "qsbit compiler artifact bundle",
+  "$defs": {
+    "resource": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "exclusive": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "exclusive"
+      ],
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "gate",
+            "pulse",
+            "acquire",
+            "arm",
+            "gate_output"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "delay": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 18446744073709551615
+        },
+        "operation": {
+          "type": "string"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resource"
+          }
+        },
+        "amplitude": {
+          "type": "number"
+        },
+        "axis": {
+          "type": "string"
+        },
+        "execution_flag": {
+          "enum": [
+            "always",
+            "last_one",
+            "last_zero",
+            "equal"
+          ]
+        },
+        "discriminator_delay": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "separate_arm": {
+          "type": "boolean"
+        },
+        "gate": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "port",
+        "delay",
+        "duration"
+      ],
+      "additionalProperties": false
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "cpu": {
+          "type": "object",
+          "properties": {
+            "period": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18446744073709551615
+            },
+            "phase": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "period",
+            "phase"
+          ],
+          "additionalProperties": false
+        },
+        "tcu": {
+          "type": "object",
+          "properties": {
+            "period": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 18446744073709551615
+            },
+            "phase": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "period",
+            "phase"
+          ],
+          "additionalProperties": false
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "watchdog": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "memory_latency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "command_latency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "reply_latency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "cpu_result_latency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "fast_result_latency": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "timing_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "event_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "staging_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "result_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "ports": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "qubits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "firing_width": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "fast_feedback": {
+          "type": "boolean"
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "codeword": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/action"
+                }
+              }
+            },
+            "required": [
+              "port",
+              "codeword",
+              "actions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "two_qubit_gates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "targets": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                }
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "core": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    },
+                    "port": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    },
+                    "codeword": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4294967295
+                    }
+                  },
+                  "required": [
+                    "core",
+                    "port",
+                    "codeword"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "resources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/resource"
+                }
+              },
+              "duration": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 18446744073709551615
+              }
+            },
+            "required": [
+              "name",
+              "operation",
+              "targets",
+              "inputs",
+              "resources",
+              "duration"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "cpu",
+        "tcu",
+        "start",
+        "watchdog",
+        "memory_latency",
+        "command_latency",
+        "reply_latency",
+        "cpu_result_latency",
+        "fast_result_latency",
+        "timing_capacity",
+        "event_capacity",
+        "staging_capacity",
+        "result_capacity",
+        "ports",
+        "qubits",
+        "firing_width",
+        "seed",
+        "fast_feedback",
+        "mappings",
+        "two_qubit_gates"
+      ],
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "compiler_version": {
+          "type": "string"
+        },
+        "isa": {
+          "type": "string"
+        },
+        "abi": {
+          "type": "string"
+        },
+        "qir_dialect": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "entry_attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "target": {
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "elf_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "result",
+                  "array",
+                  "tuple"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "result_id": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "address": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "required": [
+              "kind",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "output_word_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "stack_pointer": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "output_buffer": {
+          "type": "object",
+          "properties": {
+            "count_address": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "data_address": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "capacity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            "word_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "count_address",
+            "data_address",
+            "capacity",
+            "word_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "decoding": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "compiler_version",
+        "isa",
+        "abi",
+        "qir_dialect",
+        "entry",
+        "entry_attributes",
+        "target",
+        "profile",
+        "elf_sha256",
+        "outputs",
+        "stack_pointer"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": 1
+        },
+        "program": {
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        },
+        "backend": {
+          "type": "string"
+        },
+        "inspect": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "trace": {
+          "type": "string"
+        },
+        "memory_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "memory_dump": {
+          "type": "string"
+        },
+        "decoding": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "program",
+        "profile",
+        "backend",
+        "inspect",
+        "summary",
+        "trace"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

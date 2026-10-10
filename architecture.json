@@ -1,0 +1,155 @@
+{
+  "roots": [
+    "lib"
+  ],
+  "modules": {
+    "model": {
+      "files": [
+        "lib/model/*.hpp",
+        "lib/model/*.cpp"
+      ],
+      "allows": [],
+      "external": [
+        "qsbit/contracts/*"
+      ]
+    },
+    "target": {
+      "files": [
+        "lib/target/*.hpp",
+        "lib/target/*.cpp"
+      ],
+      "allows": [],
+      "external": [
+        "qsbit/contracts/*"
+      ]
+    },
+    "schedule": {
+      "files": [
+        "lib/schedule/*.hpp",
+        "lib/schedule/*.cpp"
+      ],
+      "allows": [
+        "model",
+        "target"
+      ],
+      "external": [
+        "qsbit/contracts/*"
+      ]
+    },
+    "llvm_ir": {
+      "files": [
+        "lib/llvm_ir/*.hpp",
+        "lib/llvm_ir/*.cpp"
+      ],
+      "allows": [],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ],
+      "header_command": "qir"
+    },
+    "qir": {
+      "files": [
+        "lib/qir/*.hpp",
+        "lib/qir/*.cpp"
+      ],
+      "allows": [
+        "model",
+        "llvm_ir"
+      ],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "config": {
+      "files": [
+        "lib/config/*.hpp",
+        "lib/config/*.cpp"
+      ],
+      "allows": [
+        "target"
+      ],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "lowering": {
+      "files": [
+        "lib/lowering/*.hpp",
+        "lib/lowering/*.cpp"
+      ],
+      "allows": [
+        "model",
+        "target",
+        "schedule",
+        "qir",
+        "llvm_ir"
+      ],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "backend": {
+      "files": [
+        "lib/backend/*.hpp",
+        "lib/backend/*.cpp"
+      ],
+      "allows": [],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "artifact": {
+      "files": [
+        "lib/artifact/*.hpp",
+        "lib/artifact/*.cpp"
+      ],
+      "allows": [
+        "model",
+        "target",
+        "schedule",
+        "config"
+      ],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "driver": {
+      "files": [
+        "lib/driver/*.hpp",
+        "lib/driver/*.cpp"
+      ],
+      "allows": [
+        "model",
+        "config",
+        "target",
+        "schedule",
+        "qir",
+        "lowering",
+        "llvm_ir",
+        "backend",
+        "artifact"
+      ],
+      "external": [
+        "qsbit/contracts/*",
+        "llvm/*"
+      ]
+    },
+    "cli": {
+      "files": [
+        "tools/qsbitc/*.cpp"
+      ],
+      "allows": [
+        "driver"
+      ],
+      "external": [
+        "qsbit/contracts/*"
+      ]
+    }
+  }
+}

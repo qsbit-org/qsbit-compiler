@@ -1,10 +1,19 @@
 #include "lowering/ControllerLowering.hpp"
 #include "lowering/InstructionBuilder.hpp"
+#include "model/Program.hpp"
+#include "schedule/ScheduledProgram.hpp"
+#include <cstdint>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Value.h>
 #include <map>
-#include <qsbit/contracts/decoder.hpp>
+#include <qsbit/contracts/executable.hpp>
 #include <qsbit/contracts/isa.hpp>
+#include <string>
 namespace qsbit {
 void lowerStatic(llvm::Module &module, const StaticProgram &program, const StaticSchedule &plan) {
   auto &context = module.getContext();
@@ -39,7 +48,7 @@ void lowerStatic(llvm::Module &module, const StaticProgram &program, const Stati
         "=r,~{memory}", i32, {});
   for (const auto &record : program.outputs) {
     if (record.kind == "result") {
-      const auto address = OutputAddress + 4 * index++;
+      const auto address = contract::abi::Static.output_data + contract::abi::WordBytes * index++;
       auto *pointer = builder.CreateIntToPtr(constant(address), builder.getPtrTy());
       builder.CreateStore(bits.at(record.value), pointer, true);
     }

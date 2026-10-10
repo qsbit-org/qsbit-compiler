@@ -1,14 +1,12 @@
+#include "model/Program.hpp"
 #include "schedule/ScheduledProgram.hpp"
+#include "target/TargetModel.hpp"
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 
 namespace qsbit {
-Schedule schedule(const Program &program, const Target &target) {
-  if (program.qubits > target.qubits)
-    throw std::runtime_error("schedule: target has too few qubits");
-  if (program.adaptive())
-    return scheduleAdaptive(std::get<AdaptiveProgram>(program.body).blocks, target);
-  const auto &body = std::get<StaticProgram>(program.body);
+StaticSchedule scheduleStatic(const StaticProgram &body, const Target &target) {
   if (body.operations.size() > MaxOperations || body.operations.size() > target.timingCapacity ||
       body.operations.size() > target.eventCapacity)
     throw std::runtime_error("schedule: program exceeds preload queue capacity");
@@ -19,14 +17,9 @@ Schedule schedule(const Program &program, const Target &target) {
   StaticSchedule result;
   std::uint32_t cycle = 1;
   for (const auto &op : body.operations) {
-    auto mapping = std::find_if(target.mappings.begin(), target.mappings.end(), [&](const auto &m) {
-      return m.operation == op.name && m.qubits == op.qubits;
-    });
-    if (mapping == target.mappings.end())
-      throw std::runtime_error("schedule: no target mapping for " +
-                               std::string(operation_name(op.name)));
-    result.operations.push_back({op, *mapping, cycle});
-    cycle += (mapping->duration + target.tcuPeriod - 1) / target.tcuPeriod;
+    const auto &mapped = mapping(target, op.name, op.qubits);
+    result.operations.push_back({op, mapped, cycle});
+    cycle += durationCycles(mapped.duration, target.tcuPeriod);
   }
   return result;
 }

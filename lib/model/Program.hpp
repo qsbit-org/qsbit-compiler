@@ -1,9 +1,11 @@
 #pragma once
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
+#include <qsbit/contracts/executable.hpp>
 #include <qsbit/contracts/operations.hpp>
 #include <string>
 #include <variant>
@@ -26,11 +28,22 @@ struct StaticProgram {
   std::vector<Operation> operations;
   std::vector<Output> outputs;
 };
+struct BlockId {
+  std::uint32_t value;
+  auto operator<=>(const BlockId &) const = default;
+};
+struct OperationId {
+  std::uint32_t value;
+  auto operator<=>(const OperationId &) const = default;
+};
 struct BlockOperation {
-  std::size_t instruction;
+  OperationId id;
   Operation operation;
 };
-using BlockOperations = std::vector<BlockOperation>;
+struct BlockOperations {
+  BlockId id;
+  std::vector<BlockOperation> operations;
+};
 struct AdaptiveIR;
 struct AdaptiveProgram {
   std::unique_ptr<AdaptiveIR, void (*)(AdaptiveIR *)> ir{nullptr, nullptr};
@@ -44,6 +57,5 @@ struct Program {
   std::variant<StaticProgram, AdaptiveProgram> body;
   bool adaptive() const { return std::holds_alternative<AdaptiveProgram>(body); }
 };
-inline constexpr std::uint32_t OutputAddress = 0x1000;
 inline constexpr std::uint32_t MaxOperations = 16;
 } // namespace qsbit

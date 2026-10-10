@@ -1,16 +1,27 @@
+#include "model/Program.hpp"
 #include "qir/AdaptiveIR.hpp"
 #include "qir/QirReader.hpp"
-#include <limits>
+#include <cstdint>
+#include <filesystem>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/Casting.h>
 #include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/raw_ostream.h>
+#include <memory>
+#include <optional>
+#include <qsbit/contracts/executable.hpp>
 #include <set>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace qsbit {
 namespace {
@@ -71,8 +82,7 @@ void signature(const llvm::CallInst &call, unsigned arguments) {
 
 Program readQIR(const std::filesystem::path &path) {
   auto owned = std::make_unique<AdaptiveIR>();
-  owned->context = std::make_unique<llvm::LLVMContext>();
-  auto &context = *owned->context;
+  auto &context = *owned->code->context;
   llvm::SMDiagnostic diagnostic;
   auto module = llvm::parseIRFile(path.string(), diagnostic, context);
   if (!module) {
@@ -96,7 +106,7 @@ Program readQIR(const std::filesystem::path &path) {
   if (!entry || entry->isDeclaration())
     fail("expected one defined entry_point");
   if (entry->getFnAttribute("qir_profiles").getValueAsString() == "adaptive_profile") {
-    owned->module = std::move(module);
+    owned->code->module = std::move(module);
     return readAdaptive(std::move(owned));
   }
   for (auto &function : *module)
@@ -181,7 +191,7 @@ Program readQIR(const std::filesystem::path &path) {
         body.outputs.push_back({name.contains("array") ? "array" : "tuple", count, outputLabel});
         containers.push_back(count);
       }
-      if (body.outputs.size() > 128)
+      if (body.outputs.size() > contract::abi::Static.output_capacity)
         fail("too many output records");
       continue;
     }

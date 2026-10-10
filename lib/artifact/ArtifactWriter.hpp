@@ -3,7 +3,12 @@
 #include "model/Program.hpp"
 #include "schedule/ScheduledProgram.hpp"
 namespace qsbit {
-void emitExecutable(Program &, const TargetInput &, const Schedule &, const std::filesystem::path &,
-                    const std::string &);
+struct ArtifactBundle {
+  llvm::json::Object manifest, run, schedule;
+};
+ArtifactBundle prepareArtifacts(const Program &, const TargetInput &, const Schedule &,
+                                const std::filesystem::path &);
+void publishArtifacts(ArtifactBundle, const std::string &digest,
+                      const std::filesystem::path &directory, const std::filesystem::path &output);
 llvm::json::Object simulatorProfile(const Target &, bool adaptive);
 } // namespace qsbit

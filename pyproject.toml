@@ -7,11 +7,15 @@ name = "qsbit-compiler-tools"
 version = "0.1.0"
 description = "Validated execution of qsbit compiler artifact bundles"
 requires-python = ">=3.10"
+dependencies = ["jsonschema>=4.23,<5"]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 
 [project.scripts]
 qsbit-run = "qsbit_compiler.runner:main"
+
+[tool.setuptools.package-data]
+qsbit_compiler = ["*.json"]
 
 [tool.setuptools.packages.find]
 where = ["python"]

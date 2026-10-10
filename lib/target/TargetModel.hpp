@@ -22,5 +22,6 @@ struct Target {
   std::uint32_t stagingCapacity = 16;
   std::vector<Mapping> mappings;
 };
+std::uint32_t durationCycles(std::uint32_t duration, std::uint32_t period);
 const Mapping &mapping(const Target &, QuantumOp, const std::vector<std::uint32_t> &);
 } // namespace qsbit

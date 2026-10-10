@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "isa": "rv32i-qsbit-v2",
+  "word_bytes": 4,
+  "static": {
+    "identifier": "qsbit-static-v2",
+    "memory_size": 65536,
+    "output_count": 0,
+    "output_data": 4096,
+    "output_capacity": 128,
+    "data_start": 0,
+    "stack_bottom": 65520,
+    "stack_pointer": 65520
+  },
+  "adaptive": {
+    "identifier": "qsbit-adaptive-v1",
+    "memory_size": 1048576,
+    "output_count": 65536,
+    "output_data": 65540,
+    "output_capacity": 16383,
+    "data_start": 131072,
+    "stack_bottom": 917504,
+    "stack_pointer": 1048560
+  }
+}
