@@ -20,7 +20,7 @@ if(NOT QsbitContracts_FOUND)
   include(FetchContent)
   FetchContent_Declare(qsbit_contracts
     GIT_REPOSITORY https://github.com/qsbit-org/qsbit-sim.git
-    GIT_TAG 67f9996a1703ce21be0ee74cc5c71921bb217e02
+    GIT_TAG c98577ef8ed887452bae0b9cc4b6aeee09608553
     SOURCE_SUBDIR contracts)
   FetchContent_MakeAvailable(qsbit_contracts)
 endif()
