@@ -1,118 +1,85 @@
 # qsbit-compiler
 
-`qsbitc` compiles supported QIR programs into RISC-V executables for
-[qsbit-sim](https://github.com/qsbit-org/qsbit-sim). The first example prepares
-and measures a Bell pair using QIR exported by CUDA-Q.
+[![CI](https://github.com/qsbit-org/qsbit-compiler/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/qsbit-org/qsbit-compiler/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/qsbit-org/qsbit-compiler)](LICENSE)
 
-The compiler validates QIR, maps operations to the target, schedules their
-execution, and generates an RV32I ELF using LLVM 21. Python supplies the
-simulator runner and test tools.
+qsbit-compiler compiles QIR programs into RV32I executables for
+[qsbit-sim](https://github.com/qsbit-org/qsbit-sim). It validates input, maps
+quantum operations to the target, schedules them, and generates code using LLVM 21.
+
+[Supported QIR](docs/contracts.md#base-profile-input) ·
+[Adaptive QIR](docs/adaptive.md) ·
+[QEC examples](examples/qec/README.md)
 
 ## Build
 
-On Ubuntu 26.04:
+Install the [prerequisites](docs/building.md), then run from the repository root:
 
 ```sh
-sudo apt-get update
-sudo apt-get install -y build-essential cmake ninja-build python3 python3-jsonschema git \
-  clang-21 llvm-21-dev llvm-21-tools lld-21 clang-format-21 clang-tidy-21
 cmake --preset clang-ninja
-cmake --build --preset clang-ninja --parallel 4
-ctest --preset clang-ninja
+cmake --build --preset clang-ninja --parallel
 cmake --install build-clang --prefix "$HOME/.local"
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Use `gcc-ninja` instead of `clang-ninja` to build the host compiler with GCC.
-Both choices use LLVM 21 and LLD 21 to generate the RISC-V executable.
-CMake uses an installed controller contract package or downloads its pinned
-revision. See [controller contracts](docs/contracts.md#controller-contract-package)
-for local and offline builds.
-Other distributions need equivalent packages, CMake 3.24 or newer, and Ninja.
-If several LLVM installations exist, pass `-DLLVM_DIR=/path/to/llvm/lib/cmake/llvm`
-to the configure command. The matching LLVM build must include RISC-V support.
-
-Add the PATH setting to your shell configuration. Install the Python runner
-with [uv](https://docs.astral.sh/uv/):
+Install the Python runner with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv tool install .
 uv tool update-shell
 ```
 
-Reopen your shell if `uv tool update-shell` changes its configuration.
-`qsbit-run` is the installed runner command. The native `qsbitc` executable is
-installed separately by CMake. LLVM and LLD 21 remain runtime dependencies.
+Reopen your shell if its configuration changed. Install
+[qsbit-sim](https://github.com/qsbit-org/qsbit-sim#build) on PATH before running
+compiled programs.
 
-## Compile and run Bell
+## Compile
 
-Run these commands from the compiler repository root:
+Compile the Bell-pair example from the repository root:
 
 ```sh
-qsbitc examples/bell.ll \
-  --target targets/sim-default.json -o out/bell.elf
+qsbitc examples/bell.ll --target targets/sim-default.json -o out/bell.elf
+```
+
+The compiler writes the ELF, lowered LLVM IR, schedule, manifest, and run
+configuration under `out/`. Keep these files together.
+
+## Run
+
+```sh
 qsbit-run out/bell.elf --backend mock --shots 1
 ```
 
-Install `qsbit-sim` on PATH. Use `--sim PATH` to select another executable.
-For numerical measurements, enable the simulator's Python bridge and install
-Aer in its runtime environment following
-[the simulator setup](https://github.com/qsbit-org/qsbit-sim/blob/main/docs/backends.md#python-runtime),
-then run:
+The mock backend supplies predetermined measurement bits. The runner saves
+results to `out/runs/results.json`, with a trace and summary for each shot.
+Use `--sim PATH` to select a different simulator executable.
+
+For quantum-state evolution, configure the simulator's
+[Aer backend](https://github.com/qsbit-org/qsbit-sim/blob/main/docs/backends.md), then run:
 
 ```sh
 qsbit-run out/bell.elf --backend aer --shots 16
 ```
 
-Each shot starts a fresh simulator process. Results are saved to
-`out/runs/results.json`; each shot also has a run configuration, execution trace,
-and summary. Bit strings follow QIR output-record order. For Bell, ideal
-measurement results are `00` and `11`; a finite sample need not split equally.
-The `mock` backend exercises controller behavior with predetermined results;
-use `aer` to simulate the quantum state.
+Each shot starts a fresh simulator process. Ideal Bell measurements produce
+`00` or `11`; a finite sample need not split equally.
 
-The compiler also writes `bell.lowered.ll`, `bell.schedule.json`,
-`bell.manifest.json`, and `bell.run.json`. Keep the artifact bundle together.
-The runner checks the ELF digest, result layout, and target profile before
-launching the simulator.
+## Supported input
 
-## Architecture
+The compiler accepts LLVM text and bitcode implementing the supported Base or
+Adaptive QIR subset. Base programs use static resources and terminal measurements;
+Adaptive programs can use intermediate measurements, branches, loops, reset, and
+decoder feedback. Unsupported instructions produce errors. Qubit placement,
+routing, and dynamic resource allocation are not supported.
 
-The QIR frontend validates input and normalizes adaptive control flow. The scheduler
-computes timing from typed operations without depending on LLVM. Lowering consumes
-the schedule and produces an owned LLVM module for RISC-V code generation.
+## Learn more
 
-LLVM is used without modifications. The compilation driver coordinates lowering,
-linking, ELF verification and artifact publication. Shared contracts define instruction encodings, decoder registers and
-executable layouts. See [compiler modules](docs/contracts.md#modules) for dependency
-rules, ownership and stage tests.
-
-## Current scope
-
-The Base Profile subset supports `h`, `x`, `z`, `cnot` or `cx`, and terminal `mz`,
-with static qubit and result identifiers. Versioned input must declare QIR 1.0.
-A separate compatibility path accepts the unversioned static format emitted by
-CUDA-Q 0.16. Input may be LLVM text or bitcode.
-
-Base programs are limited to 16 quantum operations and eight measurements.
-Operations run sequentially.
-
-The [Adaptive Profile subset](docs/adaptive.md) supports intermediate
-measurements, branches, loops, reset, S and T gates, and decoder feedback.
-It accepts the implemented QIR 2.1 Adaptive subset with `i64` entry status and
-constant output labels, plus existing QIR 1.0 input. Its
-[QEC examples](examples/qec/README.md) include a measurement loop and a
-three-qubit repetition code. The simulator repository includes a
-[distance-3 surface-code example](https://github.com/qsbit-org/qsbit-sim/tree/main/examples/qec).
-
-Qubit placement, routing and dynamic resource allocation are unsupported.
-The default target has two qubits; explicit mappings can describe up to 32.
-Unsupported instructions produce errors.
-
-See [the implementation contracts](docs/contracts.md),
-[CUDA-Q export instructions](integrations/cudaq/README.md), and
-[testing](docs/testing.md).
+- [Build setup](docs/building.md): dependencies and compiler selection.
+- [Compiler contracts](docs/contracts.md): modules, QIR constraints, targets, and artifacts.
+- [Adaptive QIR](docs/adaptive.md): control flow and decoder calls.
+- [CUDA-Q export](integrations/cudaq/README.md): generate QIR input.
+- [Testing](docs/testing.md): stage checks and simulator integration.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+[Apache License 2.0](LICENSE).
