@@ -1,15 +1,16 @@
 # Adaptive QIR
 
-Programs with `qir_profiles="adaptive_profile"` can measure during execution,
-branch on results, iterate through loops, and call a decoder. Compile them
+qsbit-compiler supports a subset of Adaptive QIR with mid-circuit measurements,
+conditional branches, loops and decoder calls. Compile these programs
 with the same `qsbitc INPUT --target TARGET -o OUTPUT.elf` command as Base
 Profile programs. The [QEC examples](../examples/qec/README.md) exercise both
 local measurement feedback and external decoding.
 
 ## Input
 
-The entry point takes no arguments. QIR 2.1 entries return an `i64` program
-status; existing QIR 1.0 entries may return void or `i64`. It declares
+The entry point declares `qir_profiles="adaptive_profile"` and takes no arguments.
+QIR 2.1 entries return an `i64` program status; existing QIR 1.0 entries may return
+void or `i64`. It declares
 `required_num_qubits` and `required_num_results`. Qubits use static identifiers
 from 0 to 31; results use static identifiers within the declared count, which
 is at most 65536. Version flags, when supplied, must specify QIR 1.0 or 2.1.
@@ -61,8 +62,8 @@ the TCU; a positive-interval point restores strict deadlines when it triggers.
 The executed control-flow path determines the sequence of waits. Different
 branches can therefore reach a merge at different time points. Loops retain
 their runtime trip count. Outside an explicit zero-wait region, a command that
-arrives after its reserved time fails with `LateAdmission`. Choose `block_cycles`
-to cover CPU issue time between feedback waits. It need not bound measurement
+arrives at or after its reserved trigger tick fails with `LateAdmission`.
+Choose `block_cycles` to cover CPU issue time between feedback waits. It need not bound measurement
 or decoder latency protected by `wait 0`.
 
 ## Decoder calls
@@ -126,28 +127,6 @@ profiles use a firing width equal to the port count and a 100000000 ns watchdog.
 
 ## Tests
 
-`compiler.adaptive` checks accepted control flow, result assignment and rejected
-input. Enable `QSBIT_TEST_QEC` with `QSBIT_SIM_EXECUTABLE` to run
-`integration.qec`. It checks the measurement loop, correction of each single
-data-qubit error, repeated decoder use, process-order independence and feedback
-with decoder latency exceeding the fixed block interval.
-
-For Bloq integration, build `bloq_qir`'s `export` example in the Bloq workspace,
-then configure this project with `QSBIT_BLOQ_EXPORTER` pointing to that executable
-and both `QSBIT_TEST_QEC=ON` and `QSBIT_TEST_AER=ON`. Select a Python
-interpreter with the QEC and Aer extras installed using
-`-DPython3_EXECUTABLE=/absolute/path/to/venv/bin/python`. CTest uses the
-configured interpreter regardless of the environment active when it runs.
-Registered test `integration.bloq`
-runs the Rust exporter, compiles both LLVM text and bitcode, and executes
-measurement feedback, phase gates, signed product measurements, bounded retries,
-all three repetition-code errors, protection during decoder latency, and a
-Bloq-compiled d3 X-memory with an independent Stim/PyMatching reference.
-Conditional protection waits and RUS entry cover both activation paths and
-repeated observable queries. Multibit decoder results exercise correction-bit
-selection with higher bits set.
-Retry and wait exhaustion must preserve nonzero status and yield no accepted shot.
-
-The cross-project workflow runs these tests against qsbit-sim main. It also
-runs the simulator's Bloq example once with the installed tools to check its
-entry point and generated artifacts.
+`compiler.adaptive` validates the supported QIR subset. Cross-project integration
+tests cover decoder feedback, control flow, timing and Bloq-generated workloads.
+See [testing](testing.md) for configuration and coverage.

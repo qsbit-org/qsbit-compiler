@@ -4,9 +4,9 @@
 [qsbit-sim](https://github.com/qsbit-org/qsbit-sim). The first example prepares
 and measures a Bell pair using QIR exported by CUDA-Q.
 
-The pipeline is QIR → validated operations → target mapping → timed schedule →
-LLVM RISC-V code generation → ELF. LLVM remains unmodified. The compiler uses
-C++20 and LLVM 21; Python is used for tests and the simulator runner.
+The compiler validates QIR, maps operations to the target, schedules their
+execution, and generates an RV32I ELF using LLVM 21. Python supplies the
+simulator runner and test tools.
 
 ## Build
 
@@ -82,24 +82,10 @@ The QIR frontend validates input and normalizes adaptive control flow. The sched
 computes timing from typed operations without depending on LLVM. Lowering consumes
 the schedule and produces an owned LLVM module for RISC-V code generation.
 
-The compilation driver coordinates lowering, linking, ELF verification and artifact
-publication. Shared contracts define instruction encodings, decoder registers and
+LLVM is used without modifications. The compilation driver coordinates lowering,
+linking, ELF verification and artifact publication. Shared contracts define instruction encodings, decoder registers and
 executable layouts. See [compiler modules](docs/contracts.md#modules) for dependency
 rules, ownership and stage tests.
-
-## Integration tests
-
-```sh
-cmake --preset clang-ninja \
-  -DQSBIT_SIM_EXECUTABLE="$(command -v qsbit-sim)" \
-  -DQSBIT_TEST_AER=ON
-cmake --build --preset clang-ninja --parallel 4
-ctest --preset clang-ninja
-```
-
-The tests check malformed input, bitcode input, ELF properties, physical action
-times, result ordering, repeated output records, profile mismatches, Bell
-measurement correlation, and the unmeasured Bell state amplitudes.
 
 ## Current scope
 
@@ -112,7 +98,7 @@ Base programs are limited to 16 quantum operations and eight measurements.
 Operations run sequentially.
 
 The [Adaptive Profile subset](docs/adaptive.md) supports intermediate
-measurements, branches, loops, reset, S/T gates and decoder feedback.
+measurements, branches, loops, reset, S and T gates, and decoder feedback.
 It accepts the implemented QIR 2.1 Adaptive subset with `i64` entry status and
 constant output labels, plus existing QIR 1.0 input. Its
 [QEC examples](examples/qec/README.md) include a measurement loop and a
@@ -125,7 +111,7 @@ Unsupported instructions produce errors.
 
 See [the implementation contracts](docs/contracts.md),
 [CUDA-Q export instructions](integrations/cudaq/README.md), and
-[the verified development setup](docs/validation.md).
+[testing](docs/testing.md).
 
 ## License
 

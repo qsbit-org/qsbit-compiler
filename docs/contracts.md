@@ -70,18 +70,7 @@ files. The runner validates their structure, ABI layout, digest and agreement be
 execution. The run schema validates compiler-required fields and permits additional
 simulator options, which the simulator validates when loading the configuration.
 
-### Stage tests
-
-`unit.scheduler` checks static cycles, missing mappings, queue limits,
-adaptive resource conflicts and reset waits directly, without LLVM or a simulator.
-Stage tests check module ownership after input destruction, operation bindings after
-classical instruction insertion and reordered block views, rejection of changed
-quantum operations and duplicate IDs, and artifact layout
-without invoking LLD. `compiler.artifact_contract` checks the packaged schema and ABI
-definitions against the shared package, accepts generated bundles and rejects invalid
-layouts and field types. The compiler tests retain frontend diagnostics and artifact
-checks. Cross-project tests execute the generated programs and compare their timing
-and quantum results.
+[Testing](testing.md) describes stage validation and cross-project checks.
 
 ## Base Profile input
 

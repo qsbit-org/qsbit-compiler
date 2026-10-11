@@ -1,6 +1,10 @@
-# Verified development setup
+# Historical validation: 2026-09-20
 
-Validated on 2026-09-20 on Linux x86-64, Ubuntu 26.04:
+This record describes validation on Linux x86-64 with Ubuntu 26.04 on
+2026-09-20. For current instructions, see [building](../README.md#build) and
+[testing](testing.md).
+
+## Recorded environment
 
 | Component | Version or revision |
 | --- | --- |
@@ -13,29 +17,7 @@ Validated on 2026-09-20 on Linux x86-64, Ubuntu 26.04:
 | Qiskit | 2.5.2 |
 | Qiskit Aer | 0.17.2 |
 
-The compiler source is at `/mnt/d/qsbit-compiler`. Its Clang build is in
-`build-clang`, its GCC build is in `build-gcc`, and its optional CUDA-Q export
-environment is in `.venv-cudaq`. These local directories are ignored by Git.
-The compiler has no Conan dependency and no temporary SystemC installation.
-
-The simulator is at `/mnt/d/qsbit-sim`. Its SystemC dependency remains in the
-Conan cache, with generated dependency files in `.conan/clang/Debug`. Its
-Python backend uses the repository's `.venv`; the compiler does not replace
-that environment.
-
-To prepare the simulator's optional numerical backend after its normal Conan
-setup, run these commands in the simulator repository:
-
-```sh
-uv sync --frozen --group build --extra aer --inexact
-cmake --preset clang-ninja -DQSBIT_PYTHON_BACKENDS=ON \
-  -DPython3_EXECUTABLE="$PWD/.venv/bin/python"
-cmake --build --preset clang-ninja --parallel 4
-ctest --test-dir build-clang --output-on-failure --parallel 4
-```
-
-The updated simulator passed all 38 configured tests. Its source worktree was
-unchanged after the update and validation.
+## Recorded results
 
 Both compiler presets built successfully and passed the compiler contract
 tests. The Clang build additionally passed the mock integration test and
@@ -50,12 +32,11 @@ They matched the simulator's `OperationStart` trace events exactly. These
 are configured simulated times, not host execution latency measurements.
 The 10000 ns preload interval is a conservative initial compiler setting.
 
-Clang-format 21 and clang-tidy 21 are part of the development checks. The
-`.clang-tidy` configuration excludes `clang-analyzer-security.ArrayBound`
-because its LLVM 21 operand-storage model reports a false positive inside
+Clang-format 21 and clang-tidy 21 were part of the development checks. The
+`.clang-tidy` configuration excluded `clang-analyzer-security.ArrayBound`
+because its LLVM 21 operand-storage model reported a false positive inside
 `llvm/IR/User.h` when following `CallBase::getCalledFunction()`. Other default
-analyzer checks remain enabled and warnings are errors.
+analyzer checks remained enabled, with warnings treated as errors.
 
-GitHub CI builds both compiler presets and runs compiler contract tests.
-Numerical integration is currently a local check requiring a separately built
-simulator; it is not included in the initial CI workflow.
+At the time of this validation, CI built both compiler presets and ran compiler
+contract tests. Numerical integration ran locally with a separately built simulator.
