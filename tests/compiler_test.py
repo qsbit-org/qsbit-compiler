@@ -66,6 +66,17 @@ with tempfile.TemporaryDirectory(prefix="qsbit-contracts-") as tmp:
         compile_case(device=dict(target, **{field: 0}), error=field)
         compile_case(device=dict(target, **{field: 1000001}), error=field)
     compile_case(device=dict(target, tcu_period_ns=3), error="aligned")
+    for start in (0, 20, 1000, 100020, 4294967280):
+        started = compile_case(device=dict(target, start_ns=start))
+        profile = json.loads(started.with_suffix(".run.json").read_text())["profile"]
+        check(profile["start"] == start, "configured start preserved")
+        events = json.loads(started.with_suffix(".schedule.json").read_text())["events"]
+        check([event["tick_ns"] for event in events] ==
+              [start + offset for offset in (20, 40, 60, 100)],
+              "start offset without 32-bit timestamp overflow")
+    for start in (-1, 4294967296, 1.5):
+        compile_case(device=dict(target, start_ns=start), error="start_ns")
+
     compile_case(source.replace('"base_profile"', '"adaptive_profile"'), error="required_num_qubits")
     compile_case(source.replace('"qir_profiles"="base_profile"', ''), error="base_profile")
     compile_case(source.replace("__quantum__qis__h__body", "__quantum__qis__reset__body"), error="unsupported call")

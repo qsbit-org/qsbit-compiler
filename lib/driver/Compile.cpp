@@ -90,7 +90,7 @@ std::string compileProgram(const std::filesystem::path &inputPath,
   std::string error;
   if (llvm::sys::ExecuteAndWait(linker, refs, std::nullopt, {}, 30, 0, &error) != 0)
     throw std::runtime_error("LLD failed: " + error);
-  validateELF(artifact(".elf"), target, adaptive);
+  validateELF(artifact(".elf"), adaptive);
   auto bytes = llvm::MemoryBuffer::getFile(artifact(".elf").string());
   if (!bytes)
     throw std::runtime_error("cannot hash ELF");

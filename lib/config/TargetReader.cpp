@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>
+#include <limits>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/JSON.h>
@@ -75,7 +76,7 @@ TargetInput readTarget(const std::filesystem::path &path) {
     target.cpuPeriod = integer(*object, "cpu_period_ns", 1, 1000000);
   if (object->get("tcu_period_ns"))
     target.tcuPeriod = integer(*object, "tcu_period_ns", 1, 1000000);
-  target.start = integer(*object, "start_ns", 10000, 100000);
+  target.start = integer(*object, "start_ns", 0, std::numeric_limits<std::uint32_t>::max());
   if (target.start % target.tcuPeriod != 0)
     fail("start_ns must be aligned to the configured TCU clock");
   auto *mappings = object->getArray("mappings");

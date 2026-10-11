@@ -129,8 +129,9 @@ one codeword. There is no implicit connectivity or routing. Both the operation
 with its ordered qubits and the port with its codeword must be unique.
 
 Target limits are 1–32 qubits, 1–64 ports, codewords 0–65535, and operation
-durations 1–10000 ns. `start_ns` is between 10000 and 100000 ns and must align
-to the configured TCU period. Each mapping expands to one simulator action with no action delay,
+durations 1–10000 ns. `start_ns` accepts nonnegative 32-bit integers
+(0–4294967295 ns) and must align to the configured TCU period. Each mapping
+expands to one simulator action with no action delay,
 exclusive resources for its qubits, and a 20 ns discriminator delay for acquisitions.
 
 The optional `cpu_period_ns` and `tcu_period_ns` fields default to 5 ns and
@@ -142,14 +143,16 @@ firing width one. The manifest embeds the target profile and transport latencies
 ## Base scheduling and controller instructions
 
 The first operation starts at TCU cycle 1. For an operation of duration `d` ns,
-the next operation starts `ceil(d / 20)` cycles later. The absolute start time
-is `start_ns + cycle * 20` ns. Independent gates are also serialized.
+the next operation starts `ceil(d / tcu_period_ns)` cycles later. The absolute start time
+is `start_ns + cycle * tcu_period_ns` ns. Independent gates are also serialized.
 
 The CPU preloads the complete schedule before the target start time. The
 16-operation bound fits the fixed timing and event queues. Measurements are
-limited to eight outstanding result deliveries. ELF validation requires
-the preload instruction count multiplied by 100 ns to be strictly less
-than `start_ns`.
+limited to eight outstanding result deliveries. The compiler does not estimate
+a preload deadline from instruction counts.
+Choose `start_ns` to allow instructions to reach the TCU before their deadlines;
+an insufficient lead time can produce `LateAdmission` during simulation.
+A value of zero is valid configuration, but does not guarantee timely execution.
 
 The compiler emits control instructions with opcode `0x0b`, funct7 zero
 and these funct3 values:

@@ -60,14 +60,14 @@ ArtifactBundle prepareArtifacts(const Program &program, const TargetInput &input
       llvm::json::Array qubits;
       for (auto q : item.operation.qubits)
         qubits.push_back(q);
-      events.push_back(
-          llvm::json::Object{{"operation", std::string(operation_name(item.operation.name))},
-                             {"qubits", std::move(qubits)},
-                             {"port", item.mapping.port},
-                             {"codeword", item.mapping.codeword},
-                             {"cycle", item.cycle},
-                             {"tick_ns", target.start + item.cycle * target.tcuPeriod},
-                             {"duration_ns", item.mapping.duration}});
+      events.push_back(llvm::json::Object{
+          {"operation", std::string(operation_name(item.operation.name))},
+          {"qubits", std::move(qubits)},
+          {"port", item.mapping.port},
+          {"codeword", item.mapping.codeword},
+          {"cycle", item.cycle},
+          {"tick_ns", std::uint64_t(target.start) + std::uint64_t(item.cycle) * target.tcuPeriod},
+          {"duration_ns", item.mapping.duration}});
     }
   auto profile = simulatorProfile(target, adaptive);
   llvm::json::Object timing{{"schema", contract::abi::Schema}};
