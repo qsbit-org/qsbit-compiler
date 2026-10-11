@@ -1,4 +1,5 @@
 #include "config/TargetReader.hpp"
+#include "model/Program.hpp"
 #include "target/TargetModel.hpp"
 #include <cstdint>
 #include <filesystem>
@@ -14,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace qsbit {
@@ -43,8 +45,56 @@ std::string string(const llvm::json::Object &object, llvm::StringRef key) {
     fail("missing or empty " + key.str());
   return value->str();
 }
+// Resolve ideal targets from the validated program, before normal target validation.
+void expandIdeal(llvm::json::Object &object, const Program &program) {
+  auto *ideal = object.getObject("ideal");
+  if (!ideal)
+    fail("ideal must be an object");
+  if (object.get("qubits") || object.get("ports") || object.get("mappings"))
+    fail("ideal cannot be combined with qubits, ports, or mappings");
+  keys(*ideal, {"max_qubits", "gate_duration_ns", "measurement_duration_ns", "reset_duration_ns"});
+  const auto limit = integer(*ideal, "max_qubits", 1, 32);
+  if (program.qubits == 0 || program.qubits > limit)
+    fail("program exceeds ideal target qubit allocation");
+  const auto gate = integer(*ideal, "gate_duration_ns", 1, 10000);
+  const auto measurement = integer(*ideal, "measurement_duration_ns", 1, 10000);
+  const auto reset = integer(*ideal, "reset_duration_ns", 1, 10000);
+  std::set<std::pair<QuantumOp, std::vector<std::uint32_t>>> operations;
+  const auto collect = [&](const Operation &operation) {
+    operations.emplace(operation.name, operation.qubits);
+  };
+  if (const auto *body = std::get_if<StaticProgram>(&program.body)) {
+    for (const auto &operation : body->operations)
+      collect(operation);
+  } else {
+    for (const auto &block : std::get<AdaptiveProgram>(program.body).blocks)
+      for (const auto &operation : block.operations)
+        collect(operation.operation);
+  }
+  llvm::json::Array mappings;
+  std::uint32_t codeword = 0;
+  for (const auto &[operation, qubits] : operations) {
+    if (qubits.empty())
+      fail("ideal mapping requires static qubit operands");
+    llvm::json::Array operands;
+    for (auto qubit : qubits)
+      operands.push_back(qubit);
+    mappings.push_back(
+        llvm::json::Object{{"operation", std::string(operation_name(operation))},
+                           {"qubits", std::move(operands)},
+                           {"port", qubits.front()},
+                           {"codeword", ++codeword},
+                           {"duration_ns", operation == QuantumOp::MeasureZ ? measurement
+                                           : operation == QuantumOp::Reset  ? reset
+                                                                            : gate}});
+  }
+  object.erase("ideal");
+  object["qubits"] = program.qubits;
+  object["ports"] = program.qubits;
+  object["mappings"] = std::move(mappings);
+}
 } // namespace
-TargetInput readTarget(const std::filesystem::path &path) {
+TargetInput readTarget(const std::filesystem::path &path, const Program &program) {
   auto buffer = llvm::MemoryBuffer::getFile(path.string());
   if (!buffer)
     fail("cannot read " + path.string());
@@ -55,7 +105,9 @@ TargetInput readTarget(const std::filesystem::path &path) {
   if (!object)
     fail("expected an object");
   keys(*object, {"schema", "name", "qubits", "ports", "start_ns", "mappings", "block_cycles",
-                 "decoding", "cpu_period_ns", "tcu_period_ns"});
+                 "decoding", "cpu_period_ns", "tcu_period_ns", "ideal"});
+  if (object->get("ideal"))
+    expandIdeal(*object, program);
   integer(*object, "schema", 1, 1);
   TargetInput input;
   auto &target = input.model;

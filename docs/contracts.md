@@ -116,6 +116,38 @@ or null. Limits are 128 output records, 64 elements per container, and 16 levels
 of nesting. The manifest preserves container records and labels; the runner
 reports a flat bit string in leaf-record order.
 
+## Ideal target generation
+
+`qsbitc INPUT --target FILE -o OUTPUT.elf` also accepts an ideal target:
+
+```json
+{
+  "schema": 1,
+  "name": "ideal-controller",
+  "start_ns": 10000,
+  "block_cycles": 1000,
+  "cpu_period_ns": 5,
+  "tcu_period_ns": 20,
+  "ideal": {
+    "max_qubits": 32,
+    "gate_duration_ns": 20,
+    "measurement_duration_ns": 40,
+    "reset_duration_ns": 40
+  }
+}
+```
+
+`ideal` is mutually exclusive with explicit `qubits`, `ports`, and `mappings`.
+All four ideal fields are required: the qubit limit is 1–32 and durations are
+1–10000 ns. The compiler derives the physical allocation from validated QIR,
+allocates one port per qubit, and generates a deterministic codeword for each
+unique operation/operand tuple using its first operand as the port. The normal
+target validator checks the resulting mappings. Both static and adaptive QIR
+are supported. Reset receives a native `reset` mapping and uses the compiler's
+existing reset scheduling and lowering, without client-side decomposition.
+The manifest and run file contain the resolved simulator profile, including any
+adaptive grouped mappings. The target file remains the input configuration.
+
 ## Target description
 
 `targets/sim-default.json` is the initial target description. Schema 1 accepts

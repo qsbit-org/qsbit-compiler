@@ -44,7 +44,7 @@ std::string compileProgram(const std::filesystem::path &inputPath,
                            const std::filesystem::path &output, const std::string &linker,
                            bool batchOperations) {
   auto program = readQIR(inputPath);
-  auto input = readTarget(targetPath);
+  auto input = readTarget(targetPath, program);
   const auto &target = input.model;
   auto plan = schedule(program, target, batchOperations);
   auto bundle = prepareArtifacts(program, input, plan, output);

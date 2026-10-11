@@ -98,6 +98,9 @@ if(BUILD_TESTING)
   add_test(NAME compiler.contracts COMMAND "${Python3_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/tests/compiler_test.py" "$<TARGET_FILE:qsbitc>" "${PROJECT_SOURCE_DIR}")
   set_tests_properties(compiler.contracts PROPERTIES TIMEOUT 60)
+  add_test(NAME compiler.ideal_target COMMAND "${Python3_EXECUTABLE}"
+    "${PROJECT_SOURCE_DIR}/tests/ideal_target_test.py" "$<TARGET_FILE:qsbitc>" "${PROJECT_SOURCE_DIR}")
+  set_tests_properties(compiler.ideal_target PROPERTIES TIMEOUT 60)
   add_test(NAME compiler.adaptive COMMAND "${Python3_EXECUTABLE}"
     "${PROJECT_SOURCE_DIR}/tests/adaptive_test.py" "$<TARGET_FILE:qsbitc>" "${PROJECT_SOURCE_DIR}")
   set_tests_properties(compiler.adaptive PROPERTIES TIMEOUT 60)

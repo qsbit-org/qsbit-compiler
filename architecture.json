@@ -68,7 +68,8 @@
         "lib/config/*.cpp"
       ],
       "allows": [
-        "target"
+        "target",
+        "model"
       ],
       "external": [
         "qsbit/contracts/*",

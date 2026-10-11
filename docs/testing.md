@@ -17,6 +17,7 @@ List registered tests with `ctest --test-dir build-clang -N`.
 | `unit.scheduler` | Static cycles, mappings, capacity limits, adaptive resource conflicts and reset waits without LLVM or a simulator. |
 | `unit.owner`, `unit.association`, `unit.artifact` | Module ownership, operation bindings after classical instruction insertion and block-view reordering, rejection of changed quantum operations and duplicate IDs, and artifact layout without LLD. |
 | `compiler.contracts` | Base QIR validation, bitcode input, ELF properties, output order and artifact contents. |
+| `compiler.ideal_target` | Program-derived mappings for static and adaptive QIR, native reset duration, deterministic output, and invalid ideal parameters. |
 | `compiler.adaptive` | Accepted control flow, result assignment and rejection of unsupported input. |
 | `compiler.artifact_contract` | Packaged schema and ABI agreement with the shared contracts; valid bundles and invalid layouts or field types. |
 | `compiler.install` | Installed compiler and Python runner behavior. |
