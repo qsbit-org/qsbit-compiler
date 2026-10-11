@@ -172,14 +172,20 @@ with tempfile.TemporaryDirectory(prefix="bloq-qir-integration-") as temporary:
                     if event["kind"] == "OperationStart"
                     and event["operation"] == "measure"
                 ]
+                resets = [
+                    event
+                    for event in events
+                    if event["kind"] == "OperationStart"
+                    and event["operation"] == "reset"
+                ]
                 if name == "retry-exhausted":
-                    assert len(measured) == 6, (
-                        measured
-                    )  # Reset read plus authored read in each attempt.
+                    # Each of three attempts has one native reset and one read.
+                    assert len(measured) == 3, measured
+                    assert len(resets) == 3, resets
                 else:
-                    assert len(measured) == 7, (
-                        measured
-                    )  # Three reads, two ancilla resets, two checks.
+                    # Three reads and two checks; native ancilla resets produce no reads.
+                    assert len(measured) == 5, measured
+                    assert len(resets) == 2, resets
                 continue
             assert all(summary["exit_code"] == 0 for summary in summaries), summaries
             if name == "feedback":
