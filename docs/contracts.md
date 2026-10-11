@@ -120,7 +120,7 @@ reports a flat bit string in leaf-record order.
 
 `targets/sim-default.json` is the initial target description. Schema 1 accepts
 only these top-level keys: `schema`, `name`, `qubits`, `ports`, `start_ns`,
-`mappings`, `block_cycles`, and `decoding`. Unknown keys are rejected.
+`mappings`, `block_cycles`, `decoding`, `cpu_period_ns`, and `tcu_period_ns`. Unknown keys are rejected.
 
 Each mapping contains `operation`, ordered `qubits`, `port`, `codeword`, and
 `duration_ns`. A port is a controller output endpoint, not a qubit identifier.
@@ -130,11 +130,12 @@ with its ordered qubits and the port with its codeword must be unique.
 
 Target limits are 1–32 qubits, 1–64 ports, codewords 0–65535, and operation
 durations 1–10000 ns. `start_ns` is between 10000 and 100000 ns and must align
-to 20 ns. Each mapping expands to one simulator action with no action delay,
+to the configured TCU period. Each mapping expands to one simulator action with no action delay,
 exclusive resources for its qubits, and a 20 ns discriminator delay for acquisitions.
 
-This target format fixes the CPU clock at 5 ns and the timing control unit
-(TCU) clock at 20 ns. The profile uses 32 timing entries, 32 event entries,
+The optional `cpu_period_ns` and `tcu_period_ns` fields default to 5 ns and
+20 ns respectively. Both accept integer periods from 1 to 1000000 ns.
+Scheduling and the generated simulator profile use the configured TCU period. The profile uses 32 timing entries, 32 event entries,
 16 staging entries, eight outstanding measurements per delivery path, and
 firing width one. The manifest embeds the target profile and transport latencies.
 

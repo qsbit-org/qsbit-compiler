@@ -53,8 +53,8 @@ TargetInput readTarget(const std::filesystem::path &path) {
   auto *object = parsed->getAsObject();
   if (!object)
     fail("expected an object");
-  keys(*object,
-       {"schema", "name", "qubits", "ports", "start_ns", "mappings", "block_cycles", "decoding"});
+  keys(*object, {"schema", "name", "qubits", "ports", "start_ns", "mappings", "block_cycles",
+                 "decoding", "cpu_period_ns", "tcu_period_ns"});
   integer(*object, "schema", 1, 1);
   TargetInput input;
   auto &target = input.model;
@@ -71,9 +71,13 @@ TargetInput readTarget(const std::filesystem::path &path) {
     fail("decoding must be an object");
   target.qubits = integer(*object, "qubits", 1, 32);
   target.ports = integer(*object, "ports", 1, 64);
+  if (object->get("cpu_period_ns"))
+    target.cpuPeriod = integer(*object, "cpu_period_ns", 1, 1000000);
+  if (object->get("tcu_period_ns"))
+    target.tcuPeriod = integer(*object, "tcu_period_ns", 1, 1000000);
   target.start = integer(*object, "start_ns", 10000, 100000);
   if (target.start % target.tcuPeriod != 0)
-    fail("start_ns must be aligned to the 20 ns TCU clock");
+    fail("start_ns must be aligned to the configured TCU clock");
   auto *mappings = object->getArray("mappings");
   if (!mappings || mappings->empty())
     fail("mappings must be a nonempty array");

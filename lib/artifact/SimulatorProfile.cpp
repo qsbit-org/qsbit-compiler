@@ -28,27 +28,28 @@ llvm::json::Object simulatorProfile(const Target &target, bool adaptive) {
     profileMappings.push_back(llvm::json::Object{
         {"port", mapping.port}, {"codeword", mapping.codeword}, {"actions", std::move(actions)}});
   }
-  auto profile = llvm::json::Object{{"schema", 1},
-                                    {"cpu", llvm::json::Object{{"period", 5}, {"phase", 0}}},
-                                    {"tcu", llvm::json::Object{{"period", 20}, {"phase", 0}}},
-                                    {"start", target.start},
-                                    {"watchdog", 1000000},
-                                    {"memory_latency", 1},
-                                    {"command_latency", 1},
-                                    {"reply_latency", 1},
-                                    {"cpu_result_latency", 1},
-                                    {"fast_result_latency", 2},
-                                    {"timing_capacity", target.timingCapacity},
-                                    {"event_capacity", target.eventCapacity},
-                                    {"staging_capacity", target.stagingCapacity},
-                                    {"result_capacity", target.resultCapacity},
-                                    {"ports", target.ports},
-                                    {"qubits", target.qubits},
-                                    {"firing_width", 1},
-                                    {"seed", 1},
-                                    {"fast_feedback", false},
-                                    {"two_qubit_gates", llvm::json::Array{}},
-                                    {"mappings", std::move(profileMappings)}};
+  auto profile =
+      llvm::json::Object{{"schema", 1},
+                         {"cpu", llvm::json::Object{{"period", target.cpuPeriod}, {"phase", 0}}},
+                         {"tcu", llvm::json::Object{{"period", target.tcuPeriod}, {"phase", 0}}},
+                         {"start", target.start},
+                         {"watchdog", 1000000},
+                         {"memory_latency", 1},
+                         {"command_latency", 1},
+                         {"reply_latency", 1},
+                         {"cpu_result_latency", 1},
+                         {"fast_result_latency", 2},
+                         {"timing_capacity", target.timingCapacity},
+                         {"event_capacity", target.eventCapacity},
+                         {"staging_capacity", target.stagingCapacity},
+                         {"result_capacity", target.resultCapacity},
+                         {"ports", target.ports},
+                         {"qubits", target.qubits},
+                         {"firing_width", 1},
+                         {"seed", 1},
+                         {"fast_feedback", false},
+                         {"two_qubit_gates", llvm::json::Array{}},
+                         {"mappings", std::move(profileMappings)}};
 
   if (adaptive) {
     profile["firing_width"] = target.ports;

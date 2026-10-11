@@ -55,6 +55,17 @@ with tempfile.TemporaryDirectory(prefix="qsbit-contracts-") as tmp:
     check([r["result_id"] for r in manifest["outputs"] if r["kind"] == "result"] == [0, 1], "output order")
     plan = json.loads(elf.with_suffix(".schedule.json").read_text())["events"]
     check([event["tick_ns"] for event in plan] == [10020, 10040, 10060, 10100], "scheduled times")
+    clocked = compile_case(device=dict(target, cpu_period_ns=2, tcu_period_ns=4))
+    clock_profile = json.loads(clocked.with_suffix(".run.json").read_text())["profile"]
+    check(clock_profile["cpu"]["period"] == 2, "configured CPU period")
+    check(clock_profile["tcu"]["period"] == 4, "configured TCU period")
+    clock_events = json.loads(clocked.with_suffix(".schedule.json").read_text())["events"]
+    check([event["tick_ns"] for event in clock_events] == [10004, 10024, 10044, 10084],
+          "gate durations retained with configured TCU period")
+    for field in ("cpu_period_ns", "tcu_period_ns"):
+        compile_case(device=dict(target, **{field: 0}), error=field)
+        compile_case(device=dict(target, **{field: 1000001}), error=field)
+    compile_case(device=dict(target, tcu_period_ns=3), error="aligned")
     compile_case(source.replace('"base_profile"', '"adaptive_profile"'), error="required_num_qubits")
     compile_case(source.replace('"qir_profiles"="base_profile"', ''), error="base_profile")
     compile_case(source.replace("__quantum__qis__h__body", "__quantum__qis__reset__body"), error="unsupported call")
