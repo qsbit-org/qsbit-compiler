@@ -7,7 +7,6 @@
 #include "schedule/ScheduledProgram.hpp"
 #include "target/TargetModel.hpp"
 #include <algorithm>
-#include <cstdint>
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -20,7 +19,6 @@
 #include <map>
 #include <memory>
 #include <qsbit/contracts/executable.hpp>
-#include <qsbit/contracts/isa.hpp>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -73,30 +71,26 @@ std::unique_ptr<OwnedModule> lowerAdaptive(Program &program, const Target &targe
                                    {b.getInt32(0), b.getInt32(resourceIndex(v, program.results))});
       };
       if (operation.has_value()) {
-        std::vector<std::uint32_t> qubits{resourceIndex(call->getArgOperand(0), program.qubits)};
-        if (operation == QuantumOp::Cx)
-          qubits.push_back(resourceIndex(call->getArgOperand(1), program.qubits));
         const auto &callPlan = scheduled.calls.at(operationIds.at(call));
+        if (!callPlan.emit) {
+          call->eraseFromParent();
+          continue;
+        }
         const auto &m = callPlan.mapping;
         const auto timing = callPlan.timing;
         wait(b, timing.before);
+        // Native reset is implemented by the electronics: no CPU measurement
+        // result or conditional-X instruction is required.
         cw(b, m);
-        if (operation == QuantumOp::MeasureZ || operation == QuantumOp::Reset) {
+        if (operation == QuantumOp::MeasureZ) {
           waitForFeedback(b);
-          auto *value = fmr(b, qubits[0]);
-          if (operation == QuantumOp::MeasureZ)
-            b.CreateStore(value, resultPointer(call->getArgOperand(1)));
-          wait(b, timing.after);
-          if (operation == QuantumOp::Reset) {
-            const auto &x = *callPlan.reset;
-            // Both branches reserve the same timing point.
-            const auto text =
-                "beqz $0, 1f\n" +
-                contract::instruction(contract::ControlFunction::Codeword, "x0, $1, $2") + "\n1:";
-            assembly(b, text, "r,r,r,~{memory}", b.getVoidTy(),
-                     {value, b.getInt32(x.port), b.getInt32(x.codeword)});
-            wait(b, callPlan.resetWait);
+          for (const auto &member : callPlan.members) {
+            auto *value = fmr(b, member.operation.qubits.front());
+            auto *destination = b.CreateInBoundsGEP(
+                resultsType, results, {b.getInt32(0), b.getInt32(*member.operation.result)});
+            b.CreateStore(value, destination);
           }
+          wait(b, timing.after);
         }
         call->eraseFromParent();
       } else if (readResult(name)) {

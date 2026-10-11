@@ -216,9 +216,11 @@ void prepareAdaptive(Program &program) {
     const BlockId blockId{nextBlock++};
     BlockOperations operations{blockId, {}};
     body.ir->blocks.emplace(blockId, &block);
+    std::uint32_t batchRegion = 0;
     for (auto &instruction : block) {
       auto *call = llvm::dyn_cast<llvm::CallInst>(&instruction);
       if (!call) {
+        ++batchRegion;
         if (const auto *returned = llvm::dyn_cast<llvm::ReturnInst>(&instruction))
           if (const auto *constant =
                   llvm::dyn_cast_or_null<llvm::ConstantInt>(returned->getReturnValue()))
@@ -252,8 +254,11 @@ void prepareAdaptive(Program &program) {
               operation == QuantumOp::MeasureZ
                   ? std::optional{resourceIndex(call->getArgOperand(1), program.results)}
                   : std::nullopt;
-          operations.operations.push_back({operationId, {*operation, std::move(qubits), result}});
+          operations.operations.push_back(
+              {operationId, {*operation, std::move(qubits), result}, batchRegion});
           body.ir->operations.emplace(operationId, call);
+        } else {
+          ++batchRegion;
         }
       }
     }

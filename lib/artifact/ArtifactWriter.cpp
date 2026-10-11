@@ -70,12 +70,41 @@ ArtifactBundle prepareArtifacts(const Program &program, const TargetInput &input
           {"duration_ns", item.mapping.duration}});
     }
   auto profile = simulatorProfile(target, adaptive);
+  if (const auto *adaptivePlan = std::get_if<AdaptiveSchedule>(&plan)) {
+    auto &mappings = *profile.getArray("mappings");
+    for (const auto &group : adaptivePlan->mappings) {
+      llvm::json::Array actions;
+      for (const auto &member : group.actions)
+        for (const auto &entry : mappings) {
+          const auto *mapping = entry.getAsObject();
+          if (mapping->getInteger("port") == member.port &&
+              mapping->getInteger("codeword") == member.codeword)
+            for (const auto &action : *mapping->getArray("actions"))
+              actions.push_back(action);
+        }
+      mappings.push_back(llvm::json::Object{{"port", group.command.port},
+                                            {"codeword", group.command.codeword},
+                                            {"actions", std::move(actions)}});
+    }
+  }
   llvm::json::Object timing{{"schema", contract::abi::Schema}};
   if (adaptive) {
     timing["block_cycles"] = target.blockCycles;
     timing["tcu_period_ns"] = target.tcuPeriod;
     timing["start_ns"] = target.start;
     timing["mode"] = "control-flow";
+    llvm::json::Array groups;
+    for (const auto &group : std::get<AdaptiveSchedule>(plan).mappings) {
+      llvm::json::Array targets;
+      for (const auto &action : group.actions)
+        targets.push_back(action.qubits.front());
+      groups.push_back(
+          llvm::json::Object{{"port", group.command.port},
+                             {"codeword", group.command.codeword},
+                             {"operation", std::string(operation_name(group.command.operation))},
+                             {"targets", std::move(targets)}});
+    }
+    timing["groups"] = std::move(groups);
   } else {
     timing["mode"] = "static";
     timing["events"] = std::move(events);

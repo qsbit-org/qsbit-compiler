@@ -41,11 +41,12 @@ void textFile(const std::filesystem::path &path, llvm::StringRef text) {
 } // namespace
 std::string compileProgram(const std::filesystem::path &inputPath,
                            const std::filesystem::path &targetPath,
-                           const std::filesystem::path &output, const std::string &linker) {
+                           const std::filesystem::path &output, const std::string &linker,
+                           bool batchOperations) {
   auto program = readQIR(inputPath);
   auto input = readTarget(targetPath);
   const auto &target = input.model;
-  auto plan = schedule(program, target);
+  auto plan = schedule(program, target, batchOperations);
   auto bundle = prepareArtifacts(program, input, plan, output);
   const auto entry = program.entry;
   const bool adaptive = program.adaptive();

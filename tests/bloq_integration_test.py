@@ -30,12 +30,10 @@ def target_for(text, qubits):
             int(value) if value else 0
             for value in re.findall(r"ptr (?:null|inttoptr \(i64 (\d+) to ptr\))", args)
         ]
-        operation = {"mz": "measure", "reset": "measure"}.get(name, name)
+        operation = {"mz": "measure"}.get(name, name)
         if variant == "adj":
             operation += "dg"
         operations.add((operation, tuple(ids[:2] if name == "cx" else ids[:1])))
-        if name == "reset":
-            operations.add(("x", tuple(ids[:1])))
     mappings = []
     for codeword, (operation, ids) in enumerate(sorted(operations), 1):
         mappings.append(
@@ -44,7 +42,7 @@ def target_for(text, qubits):
                 "qubits": list(ids),
                 "port": ids[0],
                 "codeword": codeword,
-                "duration_ns": 40 if operation == "measure" else 20,
+                "duration_ns": 80 if operation == "reset" else 40 if operation == "measure" else 20,
             }
         )
     return {

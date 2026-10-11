@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory(prefix="qsbit-contracts-") as tmp:
     compile_case(device=dict(target, start_ns=1), error="start_ns")
     compile_case(device=dict(target, qubits=33), error="qubits")
     compile_case(device=dict(target, unused=True), error="unknown key")
-    compile_case(device=dict(target, mappings=target["mappings"][:-1]), error="no target mapping")
+    compile_case(device=dict(target, mappings=[m for m in target["mappings"] if m["operation"] != "cx"]), error="no target mapping")
     compile_case(device=dict(target, mappings=target["mappings"] + target["mappings"][:1]), error="duplicate")
     remapped = json.loads(json.dumps(target))
     for mapping in remapped["mappings"]:

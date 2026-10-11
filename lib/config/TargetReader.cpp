@@ -92,7 +92,7 @@ TargetInput readTarget(const std::filesystem::path &path) {
     Mapping mapping;
     const auto name = string(*spec, "operation");
     const auto op = contract::parse_operation(name);
-    if (!op || *op == QuantumOp::Reset)
+    if (!op)
       fail("unsupported operation " + name);
     mapping.operation = *op;
     mapping.port = integer(*spec, "port", 0, target.ports - 1);

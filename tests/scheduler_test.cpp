@@ -30,7 +30,8 @@ int main() {
     target.mappings = {{QuantumOp::H, {0}, 0, 1, 20},
                        {QuantumOp::X, {0}, 0, 2, 40},
                        {QuantumOp::X, {1}, 1, 2, 60},
-                       {QuantumOp::MeasureZ, {0}, 0, 3, 40}};
+                       {QuantumOp::MeasureZ, {0}, 0, 3, 40},
+                       {QuantumOp::Reset, {0}, 0, 4, 80}};
     Program program;
     program.qubits = 2;
     auto &body = std::get<StaticProgram>(program.body);
@@ -54,9 +55,9 @@ int main() {
     check(block.calls.at(OperationId{10}).timing.before == 0);
     check(block.calls.at(OperationId{20}).timing.before == 0);
     check(block.calls.at(OperationId{30}).timing.before == 3);
-    check(block.calls.at(OperationId{30}).timing.after == 10);
-    check(block.calls.at(OperationId{30}).reset->operation == QuantumOp::X);
-    check(block.calls.at(OperationId{30}).resetWait == 10 && block.finish == 10);
+    check(block.calls.at(OperationId{30}).timing.after == 0);
+    check(block.calls.at(OperationId{30}).mapping.operation == QuantumOp::Reset);
+    check(block.finish == 10);
     target.stagingCapacity = 1;
     auto limited = scheduleAdaptive(blocks, target);
     check(limited.blocks.at(BlockId{7}).calls.at(OperationId{20}).timing.before == 1);

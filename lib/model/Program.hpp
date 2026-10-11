@@ -37,6 +37,7 @@ struct OperationId {
 struct BlockOperation {
   OperationId id;
   Operation operation;
+  std::uint32_t batchRegion = 0;
 };
 struct BlockOperations {
   BlockId id;

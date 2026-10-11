@@ -20,11 +20,15 @@ Supported quantum operations are `h`, `x`, `z`, `s`, `s` adjoint, `t`,
 `t` adjoint, `cx`, `cnot`, `mz` and `reset`. Target operation names for
 the phase gates are `s`, `sdg`, `t` and `tdg`; non-Clifford gates require
 a compatible simulator backend, such as Aer.
-Reset emits a measurement followed by X when the measurement is 1.
+Reset requires an explicit `reset` target mapping. It emits a native codeword:
+control electronics is assumed to implement any internal measurement and feedback
+without CPU participation. There is no compiler-generated FMR or conditional X.
+The configured duration reserves resources; the simulator applies the ideal reset
+channel at the start and emits no architectural measurement result.
 `__quantum__rt__read_result` and `__quantum__qis__read_result__body` return `i1`.
 Every result read must follow an assignment on all incoming control-flow paths.
-Each `mz` emits FMR and stores the bit in the corresponding result slot before
-execution continues. Reassigning a slot replaces that bit; previously computed
+Each measurement group emits FMR for its members and stores their bits in the
+corresponding result slots before execution continues. Reassigning a slot replaces that bit; previously computed
 SSA values retain their values.
 
 Classical code supports conditional and unconditional branches, returns, phi
@@ -49,11 +53,11 @@ advances the time point by the longest operation duration at that point,
 rounded up to TCU cycles.
 
 `block_cycles` is a target setting from 1 to 1000000, with default 1000. After
-each measurement and at each basic-block exit, the compiler emits a wait of
+each measurement group and at each basic-block exit, the compiler emits a wait of
 at least `block_cycles`. Any unfinished operation duration extends that wait.
-Reset also reserves this interval after its conditional X.
+Native reset uses its configured operation duration without a feedback wait.
 
-Before each measurement read and decoder call, the compiler emits `wait.r x0`.
+Before reading each measurement group and before each decoder call, the compiler emits `wait.r x0`.
 After this zero wait triggers, an empty timing queue pauses the TCU logical
 timer while the CPU waits for the result. CPU instructions, decoder transport
 and quantum-state evolution continue in physical time. Subsequent work resumes
@@ -121,7 +125,8 @@ statuses are counted separately in `exit_codes`. The controller retains
 32 status bits, so this subset requires statuses in the range 0–63.
 
 The schedule artifact records `mode: control-flow`, the target start, TCU
-period and `block_cycles`. The lowered LLVM IR contains the emitted waits and
+period, `block_cycles`, and generated `groups` with their codeword keys, operations
+and ordered targets. The lowered LLVM IR contains the emitted waits and
 branches; the simulator trace records the executed operation times. Adaptive
 profiles use a firing width equal to the port count and a 100000000 ns watchdog.
 
@@ -130,3 +135,24 @@ profiles use a firing width equal to the port count and a 100000000 ns watchdog.
 `compiler.adaptive` validates the supported QIR subset. Cross-project integration
 tests cover decoder feedback, control flow, timing and Bloq-generated workloads.
 See [testing](testing.md) for configuration and coverage.
+
+## Fixed mapping groups
+
+Adaptive compilation groups consecutive measurements or consecutive resets by
+default. `--no-batch-operations` disables grouping but retains native reset.
+Grouping stops at other instructions, result reads or records, decoder calls,
+control-flow boundaries, repeated targets, repeated result slots, or resource
+conflicts. The compiler does not move operations across these boundaries.
+
+Single-target mappings remain the target input. The scheduler synthesizes reusable
+multi-action mappings with deterministic unused port/codeword pairs and embeds them
+in the generated profile and manifest. Action order follows source order. The
+original per-target ports, resources and durations are retained. Exhausting the
+available codeword keys is a compilation error.
+
+Each acquisition reserves a separate result identity. A group fits the staging
+capacity and, for measurements, the result-delivery capacity. All group measurements
+are submitted before any member FMR. Results are saved before a later measurement
+can overwrite that target's register. Waiting is charged once per group, using the
+longest duration and the existing `block_cycles` lower bound. This optimization
+reduces instruction demand; it does not guarantee deadline feasibility.

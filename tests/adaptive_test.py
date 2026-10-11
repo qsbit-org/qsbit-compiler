@@ -108,3 +108,47 @@ with tempfile.TemporaryDirectory(prefix="qsbit-adaptive-") as temporary:
     compile_case(ready, target=decoder_target)
     compile_case(ready.replace("call i1 @decoder_ready_ui64", "call i64 @decoder_ready_ui64").replace("declare i1 @decoder_ready_ui64", "declare i64 @decoder_ready_ui64"), "invalid decoder function signature", decoder_target)
     compile_case(ready.replace("decoder_ready_ui64(i64 0)", "decoder_ready_ui64(i32 0)").replace("decoder_ready_ui64(i64)", "decoder_ready_ui64(i32)"), "decoder arguments must be i64", decoder_target)
+
+    # Nine distinct measurements require an eight-result batch and one scalar command.
+    batch_target = json.loads((root / "targets/sim-default.json").read_text())
+    batch_target.update(qubits=9, ports=9)
+    batch_target["mappings"] = [
+        dict(operation=name, qubits=[q], port=q, codeword=code, duration_ns=duration)
+        for q in range(9)
+        for name, code, duration in (("measure", 4, 40), ("reset", 5, 80))
+    ]
+    batch_device = directory / "batch.target.json"
+    batch_device.write_text(json.dumps(batch_target))
+    def ptr(q):
+        return "ptr null" if q == 0 else f"ptr inttoptr (i64 {q} to ptr)"
+    declarations = "declare void @__quantum__qis__mz__body(ptr, ptr)\ndeclare void @__quantum__qis__reset__body(ptr)\n"
+    reset_calls = [f"call void @__quantum__qis__reset__body({ptr(q)})" for q in range(9)]
+    measure_calls = [f"call void @__quantum__qis__mz__body({ptr(q)}, {ptr(q)})" for q in range(9)]
+    batch_source = declarations + "define void @batch() #0 {\nentry:\n" + "\n".join(
+        reset_calls + measure_calls) + '\nret void\n}\nattributes #0 = { "entry_point" "qir_profiles"="adaptive_profile" "required_num_qubits"="9" "required_num_results"="9" }'
+    compile_case(batch_source, target=batch_device)
+    profile = json.loads(elf.with_suffix(".run.json").read_text())["profile"]
+    groups = [m for m in profile["mappings"] if len(m["actions"]) > 1]
+    assert sorted(len(m["actions"]) for m in groups) == [8, 9]
+    scheduled_groups = json.loads(elf.with_suffix(".schedule.json").read_text())["groups"]
+    assert [(g["operation"], len(g["targets"])) for g in scheduled_groups] == [("reset", 9), ("measure", 8)]
+    assert [[a["targets"][0] for a in m["actions"]] for m in groups] == [
+        list(range(9)), list(range(8))], groups
+    run = subprocess.run([compiler, qir, "--target", batch_device, "-o", elf,
+                          "--no-batch-operations"], capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    profile = json.loads(elf.with_suffix(".run.json").read_text())["profile"]
+    assert all(len(m["actions"]) == 1 for m in profile["mappings"])
+    # Result reads prevent moving later measurements before an observable use.
+    guarded = batch_source.replace(declarations, declarations + "declare i1 @__quantum__rt__read_result(ptr)\n")
+    guarded = guarded.replace(measure_calls[0], measure_calls[0] + "\n%bit = call i1 @__quantum__rt__read_result(ptr null)")
+    compile_case(guarded, target=batch_device)
+    profile = json.loads(elf.with_suffix(".run.json").read_text())["profile"]
+    measure_groups = [m for m in profile["mappings"] if len(m["actions"]) > 1
+                      and m["actions"][0]["kind"] == "acquire"]
+    assert len(measure_groups) == 1
+    assert [a["targets"][0] for a in measure_groups[0]["actions"]] == list(range(1, 9))
+    missing_reset = dict(batch_target, mappings=[m for m in batch_target["mappings"]
+                                               if m["operation"] != "reset"])
+    batch_device.write_text(json.dumps(missing_reset))
+    compile_case(batch_source, diagnostic="mapping", target=batch_device)

@@ -192,3 +192,8 @@ start times. The run configuration embeds the same profile and result addresses.
 The runner verifies equality before execution and changes only the random seed
 within the profile between shots. These checks detect accidental mismatch;
 they do not authenticate artifacts from untrusted sources.
+
+Adaptive compilation can add fixed multi-action mappings for consecutive measurements
+and native resets; see [adaptive grouping](adaptive.md#fixed-mapping-groups).
+An explicit single-target `reset` mapping defines its duration. Reset is a native
+control-electronics capability with no CPU-visible internal measurement or feedback.

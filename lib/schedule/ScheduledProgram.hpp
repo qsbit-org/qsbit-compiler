@@ -16,18 +16,24 @@ struct OperationTiming {
 struct ScheduledCall {
   Mapping mapping;
   OperationTiming timing;
-  std::optional<Mapping> reset;
-  std::uint32_t resetWait = 0;
+  std::vector<BlockOperation> members;
+  bool emit = true;
 };
 struct ScheduledBlock {
   std::map<OperationId, ScheduledCall> calls;
   std::uint32_t finish = 0;
 };
+struct GroupMapping {
+  Mapping command;
+  std::vector<Mapping> actions;
+};
 struct AdaptiveSchedule {
+  std::vector<GroupMapping> mappings;
   std::map<BlockId, ScheduledBlock> blocks;
 };
 using Schedule = std::variant<StaticSchedule, AdaptiveSchedule>;
 StaticSchedule scheduleStatic(const StaticProgram &, const Target &);
-Schedule schedule(const Program &, const Target &);
-AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &, const Target &);
+Schedule schedule(const Program &, const Target &, bool batchOperations = true);
+AdaptiveSchedule scheduleAdaptive(const std::vector<BlockOperations> &, const Target &,
+                                  bool batchOperations = true);
 } // namespace qsbit

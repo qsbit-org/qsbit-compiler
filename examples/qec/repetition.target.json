@@ -225,6 +225,51 @@
       "port": 2,
       "codeword": 13,
       "duration_ns": 40
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 0,
+      "duration_ns": 80
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 0,
+      "duration_ns": 80
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        2
+      ],
+      "port": 2,
+      "codeword": 0,
+      "duration_ns": 80
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        3
+      ],
+      "port": 3,
+      "codeword": 0,
+      "duration_ns": 80
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        4
+      ],
+      "port": 4,
+      "codeword": 0,
+      "duration_ns": 80
     }
   ],
   "decoding": {

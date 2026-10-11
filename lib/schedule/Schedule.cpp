@@ -3,11 +3,12 @@
 #include "target/TargetModel.hpp"
 #include <stdexcept>
 namespace qsbit {
-Schedule schedule(const Program &program, const Target &target) {
+Schedule schedule(const Program &program, const Target &target, bool batchOperations) {
   if (program.qubits > target.qubits)
     throw std::runtime_error("schedule: target has too few qubits");
   if (program.adaptive())
-    return scheduleAdaptive(std::get<AdaptiveProgram>(program.body).blocks, target);
+    return scheduleAdaptive(std::get<AdaptiveProgram>(program.body).blocks, target,
+                            batchOperations);
   return scheduleStatic(std::get<StaticProgram>(program.body), target);
 }
 } // namespace qsbit

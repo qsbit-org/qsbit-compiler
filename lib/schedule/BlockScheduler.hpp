@@ -1,11 +1,12 @@
 #pragma once
 #include "schedule/ScheduledProgram.hpp"
 #include <set>
+#include <span>
 namespace qsbit {
 class BlockSchedule {
 public:
   explicit BlockSchedule(const Target &target) : target_(target) {}
-  OperationTiming reserve(const Mapping &mapping, bool measurement);
+  OperationTiming reserve(std::span<const Mapping> mappings, bool measurement);
   std::uint32_t finish() const;
 
 private:

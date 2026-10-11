@@ -86,6 +86,24 @@
       "port": 0,
       "codeword": 6,
       "duration_ns": 20
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        0
+      ],
+      "port": 0,
+      "codeword": 5,
+      "duration_ns": 80
+    },
+    {
+      "operation": "reset",
+      "qubits": [
+        1
+      ],
+      "port": 1,
+      "codeword": 5,
+      "duration_ns": 80
     }
   ]
 }
