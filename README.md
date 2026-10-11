@@ -1,4 +1,4 @@
-# qsbit-compiler
+# QSBIT compiler
 
 [![CI](https://github.com/qsbit-org/qsbit-compiler/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/qsbit-org/qsbit-compiler/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/qsbit-org/qsbit-compiler)](LICENSE)
