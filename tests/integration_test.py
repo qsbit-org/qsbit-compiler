@@ -1,17 +1,15 @@
 """Validate instruction timing, result ownership, and Bell state semantics."""
-import importlib.util
 import json
 import math
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 compiler, root, simulator = map(Path, sys.argv[1:4])
 backend = sys.argv[4]
-spec = importlib.util.spec_from_file_location("qsbit_runner", root / "python/qsbit_compiler/runner.py")
-runner = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runner)
+sys.path.insert(0, str(root / "python"))
+from qsbit_compiler import runner
 
 
 def check(condition, message):

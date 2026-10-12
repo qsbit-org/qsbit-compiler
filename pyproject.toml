@@ -13,6 +13,7 @@ license-files = ["LICENSE"]
 
 [project.scripts]
 qsbit-run = "qsbit_compiler.runner:main"
+qsbit-validate = "qsbit_compiler.artifact:main"
 
 [tool.setuptools.package-data]
 qsbit_compiler = ["*.json"]

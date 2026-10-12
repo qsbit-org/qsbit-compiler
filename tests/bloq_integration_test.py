@@ -1,7 +1,6 @@
 """Execute LLVM-verified Bloq VM exports through the compiler and simulator."""
 
 import copy
-import importlib.util
 import json
 import re
 import subprocess
@@ -14,11 +13,8 @@ import pymatching
 import stim
 
 compiler, root, simulator, exporter = map(Path, sys.argv[1:])
-spec = importlib.util.spec_from_file_location(
-    "runner", root / "python/qsbit_compiler/runner.py"
-)
-runner = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runner)
+sys.path.insert(0, str(root / "python"))
+from qsbit_compiler import runner
 
 
 def target_for(text, qubits):

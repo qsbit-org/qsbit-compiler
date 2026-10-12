@@ -64,6 +64,9 @@ qsbit-run out/bell.elf --backend aer --shots 16
 Each shot starts a fresh simulator process. Ideal Bell measurements produce
 `00` or `11`; a finite sample need not split equally.
 
+`qsbit-validate program.elf` checks an artifact bundle without running the simulator.
+It uses the same manifest, digest, profile, and ABI validation as `qsbit-run`.
+
 ## Supported input
 
 The compiler accepts LLVM text and bitcode implementing the supported Base or

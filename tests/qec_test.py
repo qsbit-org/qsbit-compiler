@@ -1,7 +1,6 @@
 """Execute adaptive loops and decoder feedback on the simulator."""
 
 import copy
-import importlib.util
 import json
 import subprocess
 import sys
@@ -9,9 +8,8 @@ import tempfile
 from pathlib import Path
 
 compiler, root, simulator = map(Path, sys.argv[1:])
-spec = importlib.util.spec_from_file_location("runner", root / "python/qsbit_compiler/runner.py")
-runner = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(runner)
+sys.path.insert(0, str(root / "python"))
+from qsbit_compiler import runner
 
 with tempfile.TemporaryDirectory(prefix="qsbit-qec-") as temporary:
     directory = Path(temporary)
